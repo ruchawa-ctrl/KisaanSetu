@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+enum Role {
+  FARMER
+  FPO_LEADER
+  BUYER
+  ADMIN
+}
+enum Language {
+  MARATHI
+  HINDI
+  ENGLISH
+}
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+enum QualityGrade {
+  GRADE_A
+  GRADE_B
+  GRADE_C
+  PENDING
+}
+enum LotStatus {
+  LISTED
+  AGGREGATED
+  IN_ESCROW
+  DISPATCHED
+  COMPLETED
+}
+enum DemandStatus {
+  OPEN
+  MATCHED
+  FULFILLED
+}
+enum EscrowStatus {
+  HOLD
+  RELEASED
+  REFUNDED
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  phone String @unique
+  role Role
+  language Language @default(MARATHI)
+  verificationStatus VerificationStatus @default(PENDING)
+  rating Float @default(0)
+  createdAt DateTime @default(now())
+  lots CropLot[]
+  fpoClusters FpoCluster[] @relation("FpoAdmin")
+  demands BuyerDemand[]
+  transactions Transaction[]
+}
+model FpoCluster {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  registrationNumber String? @unique
+  adminId String @db.Uuid
+  district String
+  state String @default("Maharashtra")
+  createdAt DateTime @default(now())
+  admin User @relation("FpoAdmin", fields: [adminId], references: [id])
+  lots CropLot[]
+}
+model CropLot {
+  id String @id @default(uuid()) @db.Uuid
+  farmerId String @db.Uuid
+  fpoId String? @db.Uuid
+  cropName String
+  variety String
+  weightKg Float
+  basePrice Float
+  qualityGrade QualityGrade @default(PENDING)
+  sampleImageUrls String[]
+  status LotStatus @default(LISTED)
+  harvestDate DateTime
+  latitude Float?
+  longitude Float?
+  aggregatedFromIds String[]
+  createdAt DateTime @default(now())
+  farmer User @relation(fields: [farmerId], references: [id])
+  fpo FpoCluster? @relation(fields: [fpoId], references: [id])
+  transactions Transaction[]
+}
+model BuyerDemand {
+  id String @id @default(uuid()) @db.Uuid
+  buyerId String @db.Uuid
+  cropName String
+  targetGrade QualityGrade
+  requiredQuantityKg Float
+  maxPrice Float
+  destinationPincode String
+  status DemandStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  buyer User @relation(fields: [buyerId], references: [id])
+}
+model Transaction {
+  id String @id @default(uuid()) @db.Uuid
+  lotId String @db.Uuid
+  buyerId String @db.Uuid
+  agreedPrice Float
+  totalAmount Float
+  escrowStatus EscrowStatus @default(HOLD)
+  signedDeliveryQrHash String?
+  createdAt DateTime @default(now())
+  lot CropLot @relation(fields: [lotId], references: [id])
+  buyer User @relation(fields: [buyerId], references: [id])
+}
+model MandiPriceHistory {
+  id String @id @default(uuid()) @db.Uuid
+  mandiName String
+  cropName String
+  arrivalVolumeTonnes Float
+  minPrice Float
+  maxPrice Float
+  modalPrice Float
+  recordedDate DateTime
+  @@index([mandiName, cropName, recordedDate])
+}

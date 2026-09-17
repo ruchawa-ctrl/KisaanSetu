@@ -1,0 +1,1 @@
+export default { content: ['./index.html','./src/**/*.{ts,tsx}'], theme: { extend: { fontFamily: { display: ['"DM Sans"','sans-serif'], serif: ['"DM Serif Display"','serif'] }, colors: { ink: '#18231d', moss: '#2f5d50', leaf: '#9fc64d', cream: '#f6f4ed', clay: '#db7049' } } }, plugins: [] };
