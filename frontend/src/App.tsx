@@ -1,4 +1,4 @@
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import {
   ArrowUpRight,
   BarChart3,
@@ -18,6 +18,8 @@ import axios from "axios";
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api/v1",
 });
+const storedToken = localStorage.getItem("kisaan_setu_token");
+if (storedToken) api.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
 type Role = "farmer" | "buyer";
 type SupportedLanguage = "en" | "hi" | "mr";
 type Language = SupportedLanguage | "te" | "as" | "mai" | "hne" | "kok" | "gu" | "bg" | "sat" | "kn" | "ml" | "mni" | "kha" | "lus" | "ao" | "or" | "pa" | "raj" | "ne" | "ta" | "ur" | "bn" | "gar" | "bho" | "ks" | "sd" | "tcy";
@@ -63,7 +65,7 @@ const copy = {
     scan: "Scan crop sample",
     choose: "Choose a JPG or PNG from your device",
     upload: "Upload sample",
-    fileLimit: "JPG or PNG · up to 10 MB", cropDesk: "AI QUALITY DESK", publishRequirement: "Publish a requirement", crop: "Crop", quantity: "Quantity (kg)", maximumPrice: "Maximum price / qtl", publishRfq: "Publish RFQ", today: "Today", qrReady: "QR verification ready for delivery",
+    fileLimit: "JPG or PNG · up to 10 MB", chooseFile: "Choose file", cropDesk: "AI QUALITY DESK", publishRequirement: "Publish a requirement", crop: "Crop", quantity: "Quantity (kg)", maximumPrice: "Maximum price / qtl", publishRfq: "Publish RFQ", today: "Today", qrReady: "QR verification ready for delivery", authTitle: "Kisaan Setu access", login: "Sign in", register: "Create farmer account", name: "Full name", phone: "Phone number", password: "Password", confirmPassword: "Confirm password", signIn: "Sign in securely", createAccount: "Create account", noAccount: "New to Kisaan Setu?", hasAccount: "Already registered?", switchRegister: "Register here", switchLogin: "Sign in here", authNote: "Your password is encrypted and stored securely.", demoAccess: "Continue in demo mode", demoNote: "Use the dashboard without a database connection.", readingImage: "Reading image...", gradingUnavailable: "Image could not be graded. Check that the ML service is running on port 8000.", languagePreference: "Preferred language",
   },
   hi: {
     language: "भाषा",
@@ -75,7 +77,7 @@ const copy = {
     scan: "फसल का नमूना स्कैन करें",
     choose: "अपने डिवाइस से JPG या PNG चुनें",
     upload: "नमूना अपलोड करें",
-    fileLimit: "JPG या PNG · अधिकतम 10 MB", cropDesk: "एआई गुणवत्ता केंद्र", publishRequirement: "आवश्यकता प्रकाशित करें", crop: "फसल", quantity: "मात्रा (किग्रा)", maximumPrice: "अधिकतम कीमत / क्विंटल", publishRfq: "आरएफक्यू प्रकाशित करें", today: "आज", qrReady: "डिलीवरी के लिए क्यूआर सत्यापन तैयार है",
+    fileLimit: "JPG या PNG · अधिकतम 10 MB", chooseFile: "फ़ाइल चुनें", cropDesk: "एआई गुणवत्ता केंद्र", publishRequirement: "आवश्यकता प्रकाशित करें", crop: "फसल", quantity: "मात्रा (किग्रा)", maximumPrice: "अधिकतम कीमत / क्विंटल", publishRfq: "आरएफक्यू प्रकाशित करें", today: "आज", qrReady: "डिलीवरी के लिए क्यूआर सत्यापन तैयार है", authTitle: "किसान सेतु प्रवेश", login: "लॉग इन", register: "किसान खाता बनाएं", name: "पूरा नाम", phone: "फ़ोन नंबर", password: "पासवर्ड", confirmPassword: "पासवर्ड की पुष्टि करें", signIn: "सुरक्षित लॉग इन", createAccount: "खाता बनाएं", noAccount: "किसान सेतु पर नए हैं?", hasAccount: "पहले से पंजीकृत हैं?", switchRegister: "यहां पंजीकरण करें", switchLogin: "यहां लॉग इन करें", authNote: "आपका पासवर्ड एन्क्रिप्ट करके सुरक्षित रखा जाता है।", demoAccess: "डेमो मोड में जारी रखें", demoNote: "डेटाबेस कनेक्शन के बिना डैशबोर्ड का उपयोग करें।", readingImage: "छवि पढ़ी जा रही है...", gradingUnavailable: "छवि ग्रेड नहीं हो सकी। जांचें कि ML सेवा पोर्ट 8000 पर चल रही है।", languagePreference: "पसंदीदा भाषा",
   },
   mr: {
     language: "भाषा",
@@ -87,10 +89,10 @@ const copy = {
     scan: "पिकाचा नमुना स्कॅन करा",
     choose: "तुमच्या डिव्हाइसवरून JPG किंवा PNG निवडा",
     upload: "नमुना अपलोड करा",
-    fileLimit: "JPG किंवा PNG · कमाल 10 MB", cropDesk: "एआय गुणवत्ता केंद्र", publishRequirement: "गरज प्रकाशित करा", crop: "पीक", quantity: "प्रमाण (किलो)", maximumPrice: "कमाल किंमत / क्विंटल", publishRfq: "आरएफक्यू प्रकाशित करा", today: "आज", qrReady: "वितरणासाठी क्यूआर सत्यापन तयार आहे",
+    fileLimit: "JPG किंवा PNG · कमाल 10 MB", chooseFile: "फाइल निवडा", cropDesk: "एआय गुणवत्ता केंद्र", publishRequirement: "गरज प्रकाशित करा", crop: "पीक", quantity: "प्रमाण (किलो)", maximumPrice: "कमाल किंमत / क्विंटल", publishRfq: "आरएफक्यू प्रकाशित करा", today: "आज", qrReady: "वितरणासाठी क्यूआर सत्यापन तयार आहे", authTitle: "किसान सेतु प्रवेश", login: "लॉग इन", register: "शेतकरी खाते तयार करा", name: "पूर्ण नाव", phone: "फोन नंबर", password: "पासवर्ड", confirmPassword: "पासवर्डची पुष्टी करा", signIn: "सुरक्षित लॉग इन", createAccount: "खाते तयार करा", noAccount: "किसान सेतु वर नवीन आहात?", hasAccount: "आधीच नोंदणी केली आहे?", switchRegister: "येथे नोंदणी करा", switchLogin: "येथे लॉग इन करा", authNote: "तुमचा पासवर्ड एन्क्रिप्ट करून सुरक्षित ठेवला जातो.", demoAccess: "डेमो मोडमध्ये सुरू ठेवा", demoNote: "डेटाबेस कनेक्शनशिवाय डॅशबोर्ड वापरा.", readingImage: "प्रतिमा वाचली जात आहे...", gradingUnavailable: "प्रतिमेचे ग्रेडिंग होऊ शकले नाही. ML सेवा पोर्ट 8000 वर चालू आहे का ते तपासा.", languagePreference: "पसंतीची भाषा",
   },
 } as const;
-const lots = [
+const defaultLots = [
   {
     id: "lot-1",
     crop: "Nashik Red Onion",
@@ -130,16 +132,79 @@ function Badge({
 }
 function App() {
   const [role, setRole] = useState<Role>("farmer");
+  const [lots, setLots] = useState(defaultLots);
   const [language, setLanguage] = useState<Language>("en");
   const [scan, setScan] = useState(false);
   const [menu, setMenu] = useState(false);
   const [selected, setSelected] = useState<string[]>(["lot-1"]);
   const [notice, setNotice] = useState("");
   const [rfq, setRfq] = useState(false);
+  const [manualLot, setManualLot] = useState(false);
+  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("kisaan_setu_token") || localStorage.getItem("kisaan_setu_demo")));
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authError, setAuthError] = useState("");
   const [sampleImage, setSampleImage] = useState<string | null>(null);
   const [sampleName, setSampleName] = useState("");
+  const [sampleFile, setSampleFile] = useState<File | null>(null);
+  const [grading, setGrading] = useState(false);
+  const [gradeResult, setGradeResult] = useState<{ grade: string; confidence: number; score: number; conclusion: string; summary: string; recommendation: string; metrics: { color_score: number; surface_uniformity: number; blemish_free_score: number } } | null>(null);
+  const sampleInputRef = useRef<HTMLInputElement>(null);
   const selectedLanguage = languageOptions.find((option) => option.code === language);
   const labels = copy[selectedLanguage?.fallback || "en"];
+  const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAuthError("");
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get("password") || "");
+    if (authMode === "register" && password !== String(form.get("confirmPassword") || "")) {
+      setAuthError(language === "hi" ? "पासवर्ड मेल नहीं खाते" : language === "mr" ? "पासवर्ड जुळत नाहीत" : "Passwords do not match");
+      return;
+    }
+    try {
+      const response = await api.post(`/auth/${authMode}`, authMode === "register" ? { name: form.get("name"), phone: form.get("phone"), password, language: language === "mr" ? "MARATHI" : language === "hi" ? "HINDI" : "ENGLISH" } : { phone: form.get("phone"), password });
+      localStorage.setItem("kisaan_setu_token", response.data.token);
+      api.defaults.headers.common.Authorization = `Bearer ${response.data.token}`;
+      setAuthenticated(true);
+    } catch (error) {
+      setAuthError(axios.isAxiosError(error) ? error.response?.data?.error || "Authentication failed" : "Authentication failed");
+    }
+  };
+  const enterDemoMode = () => {
+    localStorage.setItem("kisaan_setu_demo", "true");
+    setAuthenticated(true);
+  };
+  const openScan = () => {
+    setGradeResult(null);
+    setNotice("");
+    setSampleFile(null);
+    setSampleName("");
+    setSampleImage(null);
+    setScan(true);
+  };
+  const createManualLot = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const cropName = String(form.get("cropName") || "").trim();
+    const variety = String(form.get("variety") || "").trim();
+    const weightKg = Number(form.get("weightKg"));
+    const basePrice = Number(form.get("basePrice"));
+    const harvestDate = String(form.get("harvestDate") || "");
+    const latitude = Number(form.get("latitude")) || undefined;
+    const longitude = Number(form.get("longitude")) || undefined;
+    if (!cropName || !variety || weightKg <= 0 || basePrice <= 0 || !harvestDate) {
+      setNotice("Enter crop, variety, weight, price, and harvest date.");
+      return;
+    }
+    const newLot = { id: `local-${Date.now()}`, crop: `${cropName} · ${variety}`, grade: "PENDING", weight: `${weightKg} kg`, price: `₹${basePrice.toLocaleString("en-IN")}`, farmer: "You", verified: false };
+    setLots((current) => [newLot, ...current]);
+    try {
+      await api.post("/lots/create", { cropName, variety, weightKg, basePrice, harvestDate, latitude, longitude, sampleImageUrls: [] });
+      setNotice("Lot saved successfully.");
+    } catch {
+      setNotice("Lot added to this dashboard. Connect PostgreSQL to sync it to the server.");
+    }
+    setManualLot(false);
+  };
   const toggleLot = (id: string) =>
     setSelected((items) =>
       items.includes(id) ? items.filter((item) => item !== id) : [...items, id],
@@ -147,7 +212,8 @@ function App() {
   const handleSample = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!["image/jpeg", "image/png"].includes(file.type)) {
+    const isSupportedImage = ["image/jpeg", "image/png"].includes(file.type) || /\.(jpe?g|png)$/i.test(file.name);
+    if (!isSupportedImage) {
       setNotice(labels.choose);
       return;
     }
@@ -155,27 +221,30 @@ function App() {
       setNotice(language === "hi" ? "छवि 10 MB से छोटी होनी चाहिए" : language === "mr" ? "प्रतिमा 10 MB पेक्षा लहान असावी" : "Image must be smaller than 10 MB");
       return;
     }
+    setSampleFile(file);
     setSampleName(file.name);
     setSampleImage(URL.createObjectURL(file));
   };
   const gradeSample = async () => {
-    const input = document.getElementById("crop-sample") as HTMLInputElement | null;
-    const file = input?.files?.[0];
-    if (!file) return;
+    if (!sampleFile) return;
+    setGrading(true);
     const formData = new FormData();
-    formData.append("image", file);
+    formData.append("image", sampleFile, sampleFile.name);
     try {
       const response = await axios.post(
         `${import.meta.env.VITE_ML_URL || "http://localhost:8000"}/grade-image`,
         formData,
       );
+      if (!response.data.predicted_grade) throw new Error("No grade returned");
+      setGradeResult({ grade: response.data.predicted_grade, confidence: response.data.confidence, score: response.data.quality_score, conclusion: response.data.conclusion, summary: response.data.report.summary, recommendation: response.data.report.recommendation, metrics: response.data.metrics });
       setNotice(
         `${labels.ready}: ${response.data.predicted_grade} · ${Math.round(response.data.confidence * 100)}% confidence`,
       );
-    } catch {
-      setNotice(`${labels.ready}: GRADE A · 94% confidence (demo mode)`);
+    } catch (error) {
+      const detail = axios.isAxiosError(error) ? error.response?.data?.detail : "";
+      setNotice(detail || labels.gradingUnavailable);
     }
-    setScan(false);
+    setGrading(false);
   };
   const createRfq = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -193,6 +262,9 @@ function App() {
       /* offline demo mode */
     }
   };
+  if (!authenticated) {
+    return <div className="auth-shell"><div className="auth-card"><div className="brand"><span className="brand-mark"><Sprout size={19} /></span><span>Kisaan <b>Setu</b></span></div><p className="eyebrow">{labels.authTitle}</p><h1>{authMode === "login" ? labels.login : labels.register}</h1><form onSubmit={handleAuth}>{authMode === "register" && <label>{labels.name}<input name="name" required minLength={2} /></label>}<label>{labels.phone}<input name="phone" type="tel" inputMode="numeric" pattern="[0-9]{10}" placeholder="10 digit number" required /></label><label>{labels.password}<input name="password" type="password" minLength={8} required /></label>{authMode === "register" && <label>{labels.confirmPassword}<input name="confirmPassword" type="password" minLength={8} required /></label>}{authError && <div className="auth-error">{authError}</div>}<button className="primary-btn full" type="submit">{authMode === "login" ? labels.signIn : labels.createAccount}</button></form><p className="auth-note">{labels.authNote}</p><button className="demo-btn" onClick={enterDemoMode}>{labels.demoAccess}</button><p className="demo-note">{labels.demoNote}</p><p className="auth-switch">{authMode === "login" ? labels.noAccount : labels.hasAccount} <button onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>{authMode === "login" ? labels.switchRegister : labels.switchLogin}</button></p></div></div>;
+  }
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -370,7 +442,7 @@ function App() {
                   <p>
                     {labels.gradeIntro}
                   </p>
-                  <button className="primary-btn" onClick={() => setScan(true)}>
+                  <button className="primary-btn" onClick={openScan}>
                     <Camera size={17} /> {labels.startGrading}
                   </button>
                 </div>
@@ -387,7 +459,7 @@ function App() {
               </div>
               <button
                 className="primary-btn small"
-                onClick={() => setScan(true)}
+                onClick={() => setManualLot(true)}
               >
                 <Leaf size={16} /> {labels.addLot}
               </button>
@@ -494,6 +566,7 @@ function App() {
             <button className="modal-close" onClick={() => setScan(false)}>
               <X size={18} />
             </button>
+            {gradeResult && <div className="grade-result"><div><span className="eyebrow">FINAL QUALITY REPORT</span><strong>{gradeResult.grade}</strong><b className="quality-score">{gradeResult.score}/100</b></div><Badge>{Math.round(gradeResult.confidence * 100)}% confidence</Badge><p><b>{gradeResult.conclusion}</b></p><p>{gradeResult.summary}</p><div className="report-metrics"><span>Color <b>{gradeResult.metrics.color_score}%</b></span><span>Surface <b>{gradeResult.metrics.surface_uniformity}%</b></span><span>Blemish-free <b>{gradeResult.metrics.blemish_free_score}%</b></span></div><div className="report-recommendation"><b>Recommendation</b><span>{gradeResult.recommendation}</span></div></div>}
             <p className="eyebrow">{labels.cropDesk}</p>
             <h2>{labels.scan}</h2>
             <label className="upload-box" htmlFor="crop-sample">
@@ -504,7 +577,9 @@ function App() {
               )}
               <b>{sampleName || labels.choose}</b>
               <span>{labels.fileLimit}</span>
+              <span className="file-picker-button">{labels.chooseFile}</span>
               <input
+                ref={sampleInputRef}
                 id="crop-sample"
                 type="file"
                 accept="image/jpeg,image/png,.jpg,.jpeg,.png"
@@ -513,10 +588,10 @@ function App() {
             </label>
             <button
               className="primary-btn full"
-              disabled={!sampleImage}
-              onClick={gradeSample}
+              disabled={grading}
+              onClick={() => sampleFile ? gradeSample() : sampleInputRef.current?.click()}
             >
-              {labels.upload}
+              {grading ? labels.readingImage : sampleFile ? labels.upload : labels.chooseFile}
             </button>
           </div>
         </div>
@@ -548,6 +623,21 @@ function App() {
             <button className="primary-btn full" type="submit">
               {labels.publishRfq} <ArrowUpRight size={15} />
             </button>
+          </form>
+        </div>
+      )}
+      {manualLot && (
+        <div className="modal-backdrop">
+          <form className="modal" onSubmit={createManualLot}>
+            <button type="button" className="modal-close" onClick={() => setManualLot(false)}><X size={18} /></button>
+            <p className="eyebrow">YOUR INVENTORY</p>
+            <h2>Add lot manually</h2>
+            <label>Crop name<input name="cropName" placeholder="Onion" required /></label>
+            <label>Variety<input name="variety" placeholder="Nashik Red" required /></label>
+            <div className="form-grid"><label>Weight (kg)<input name="weightKg" type="number" min="1" step="0.1" required /></label><label>Base price / qtl<input name="basePrice" type="number" min="1" step="1" required /></label></div>
+            <label>Harvest date<input name="harvestDate" type="date" required /></label>
+            <div className="form-grid"><label>Latitude (optional)<input name="latitude" type="number" step="any" /></label><label>Longitude (optional)<input name="longitude" type="number" step="any" /></label></div>
+            <button className="primary-btn full" type="submit">Save lot <ArrowUpRight size={15} /></button>
           </form>
         </div>
       )}

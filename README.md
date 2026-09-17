@@ -46,6 +46,7 @@ Open `http://localhost:5173`. The development OTP is `123456` for seeded phone n
 
 ## API surface
 
+- `POST /api/v1/auth/register`, `POST /api/v1/auth/login`
 - `POST /api/v1/auth/otp`, `POST /api/v1/auth/verify`
 - `POST /api/v1/lots/create`, `GET /api/v1/lots`
 - `POST /api/v1/fpo/aggregate`
@@ -64,6 +65,8 @@ python train_price_model.py
 ```
 
 The script engineers lags, rolling averages, and annual seasonality, evaluates a ten-day forecast with MAPE, and writes `price_forecaster.joblib`.
+
+Farmer passwords are never stored as plaintext. Registration stores a bcrypt hash in PostgreSQL and login returns a seven-day JWT. Run `npm --workspace backend run prisma:migrate -- --name add-password-auth` after setting `DATABASE_URL` to apply the new `passwordHash` column.
 
 For grading, put an ImageFolder dataset under `data/grading/GRADE_A`, `data/grading/GRADE_B`, and `data/grading/GRADE_C`, then run:
 
