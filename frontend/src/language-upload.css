@@ -1,0 +1,2 @@
+.language-picker{display:flex;align-items:center;gap:6px;color:#7e887f;font-size:10px;margin:0}.language-picker select{border:1px solid #d5d9d0;border-radius:4px;background:#fff;color:#2f5d50;padding:6px 22px 6px 7px;font:inherit}.upload-box{cursor:pointer;text-align:center;padding:12px}.upload-box input{display:none}.sample-preview{width:100%;height:120px;object-fit:cover;border-radius:4px}.primary-btn:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:760px){.language-picker span{display:none}.language-picker select{padding:6px}}
