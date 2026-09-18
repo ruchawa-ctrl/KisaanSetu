@@ -52,6 +52,11 @@ Open `http://localhost:5173`. The development OTP is `123456` for seeded phone n
 - `POST /api/v1/fpo/aggregate`
 - `POST /api/v1/demands/create`, `GET /api/v1/demands/matches`
 - `POST /api/v1/transactions/lock-escrow`, `POST /api/v1/transactions/verify-delivery`
+- `GET /api/v1/dashboard/prices` - authenticated mandi price history
+- `GET /api/v1/dashboard/activity` - authenticated lots, demands, and transactions
+- `POST /api/v1/demands/:demandId/offers` - farmer offers a compatible lot to a buyer request
+- `GET /api/v1/demands/:demandId/offers` - buyer views provider and lot details
+- `POST /api/v1/demands/offers/:offerId/accept` - buyer accepts a farmer offer and matches the request
 - `POST http://localhost:8000/predict-window`
 - `POST http://localhost:8000/grade-image`
 
@@ -66,7 +71,7 @@ python train_price_model.py
 
 The script engineers lags, rolling averages, and annual seasonality, evaluates a ten-day forecast with MAPE, and writes `price_forecaster.joblib`.
 
-Farmer passwords are never stored as plaintext. Registration stores a bcrypt hash in PostgreSQL and login returns a seven-day JWT. Run `npm --workspace backend run prisma:migrate -- --name add-password-auth` after setting `DATABASE_URL` to apply the new `passwordHash` column.
+Farmer passwords are never stored as plaintext. Registration stores a bcrypt hash in PostgreSQL and login returns a seven-day JWT. Run `npm --workspace backend run prisma:migrate -- --name add-password-auth-and-demand-offers` after setting `DATABASE_URL` to apply the password and buyer-offer tables.
 
 For grading, put an ImageFolder dataset under `data/grading/GRADE_A`, `data/grading/GRADE_B`, and `data/grading/GRADE_C`, then run:
 

@@ -41,6 +41,11 @@ enum DemandStatus {
   MATCHED
   FULFILLED
 }
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
 enum EscrowStatus {
   HOLD
   RELEASED
@@ -61,6 +66,7 @@ model User {
   fpoClusters FpoCluster[] @relation("FpoAdmin")
   demands BuyerDemand[]
   transactions Transaction[]
+  demandOffers DemandOffer[] @relation("FarmerOffers")
 }
 model FpoCluster {
   id String @id @default(uuid()) @db.Uuid
@@ -92,6 +98,7 @@ model CropLot {
   farmer User @relation(fields: [farmerId], references: [id])
   fpo FpoCluster? @relation(fields: [fpoId], references: [id])
   transactions Transaction[]
+  demandOffers DemandOffer[]
 }
 model BuyerDemand {
   id String @id @default(uuid()) @db.Uuid
@@ -104,6 +111,21 @@ model BuyerDemand {
   status DemandStatus @default(OPEN)
   createdAt DateTime @default(now())
   buyer User @relation(fields: [buyerId], references: [id])
+  offers DemandOffer[]
+}
+model DemandOffer {
+  id String @id @default(uuid()) @db.Uuid
+  demandId String @db.Uuid
+  farmerId String @db.Uuid
+  lotId String @db.Uuid
+  message String?
+  status OfferStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  demand BuyerDemand @relation(fields: [demandId], references: [id])
+  farmer User @relation("FarmerOffers", fields: [farmerId], references: [id])
+  lot CropLot @relation(fields: [lotId], references: [id])
+  @@unique([demandId, lotId])
+  @@index([farmerId, status])
 }
 model Transaction {
   id String @id @default(uuid()) @db.Uuid

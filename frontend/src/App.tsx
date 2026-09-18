@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   BarChart3,
@@ -21,6 +21,9 @@ const api = axios.create({
 const storedToken = localStorage.getItem("kisaan_setu_token");
 if (storedToken) api.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
 type Role = "farmer" | "buyer";
+type DashboardTab = "marketplace" | "prices" | "activity";
+type PriceRecord = { mandiName: string; cropName: string; modalPrice: number; minPrice: number; maxPrice: number; arrivalVolumeTonnes: number; recordedDate: string };
+type ActivityData = { lots: { id: string; cropName: string; variety: string; weightKg: number; qualityGrade: string; status: string; basePrice: number; createdAt: string }[]; demands: { id: string; cropName: string; requiredQuantityKg: number; maxPrice: number; status: string; createdAt: string }[]; transactions: { id: string; totalAmount: number; escrowStatus: string; createdAt: string; lot: { cropName: string; weightKg: number } }[]; offers: { id: string; status: string; message?: string; demand: { id: string; cropName: string; requiredQuantityKg: number; maxPrice: number; status: string; destinationPincode: string }; farmer?: { name: string; phone: string; verificationStatus: string; rating: number }; lot: { id: string; cropName: string; variety: string; weightKg: number; basePrice: number; qualityGrade: string; status: string } }[]; openDemands: { id: string; cropName: string; targetGrade: string; requiredQuantityKg: number; maxPrice: number; destinationPincode: string; createdAt: string; buyer: { name: string; verificationStatus: string } }[] };
 type SupportedLanguage = "en" | "hi" | "mr";
 type Language = SupportedLanguage | "te" | "as" | "mai" | "hne" | "kok" | "gu" | "bg" | "sat" | "kn" | "ml" | "mni" | "kha" | "lus" | "ao" | "or" | "pa" | "raj" | "ne" | "ta" | "ur" | "bn" | "gar" | "bho" | "ks" | "sd" | "tcy";
 const languageOptions: { code: Language; label: string; state: string; fallback: SupportedLanguage }[] = [
@@ -121,6 +124,12 @@ const defaultLots = [
     verified: true,
   },
 ];
+const fallbackPrices: PriceRecord[] = [
+  { mandiName: "Nashik", cropName: "Onion", modalPrice: 2450, minPrice: 2200, maxPrice: 2630, arrivalVolumeTonnes: 124, recordedDate: "2026-09-22" },
+  { mandiName: "Pune", cropName: "Onion", modalPrice: 2310, minPrice: 2080, maxPrice: 2490, arrivalVolumeTonnes: 98, recordedDate: "2026-09-22" },
+  { mandiName: "Latur", cropName: "Soybean", modalPrice: 4720, minPrice: 4490, maxPrice: 4910, arrivalVolumeTonnes: 156, recordedDate: "2026-09-22" },
+];
+const fallbackActivity: ActivityData = { lots: defaultLots.map((lot) => ({ id: lot.id, cropName: lot.crop, variety: "Demo lot", weightKg: Number(lot.weight.replace(/[^0-9.]/g, "").replace(",", "")), qualityGrade: lot.grade.replace(" ", "_"), status: "LISTED", basePrice: Number(lot.price.replace(/[^0-9]/g, "")), createdAt: "2026-09-22" })), demands: [], transactions: [], offers: [], openDemands: [] };
 function Badge({
   children,
   tone = "green",
@@ -132,7 +141,10 @@ function Badge({
 }
 function App() {
   const [role, setRole] = useState<Role>("farmer");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("marketplace");
   const [lots, setLots] = useState(defaultLots);
+  const [prices, setPrices] = useState<PriceRecord[]>(fallbackPrices);
+  const [activity, setActivity] = useState<ActivityData>(fallbackActivity);
   const [language, setLanguage] = useState<Language>("en");
   const [scan, setScan] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -140,6 +152,7 @@ function App() {
   const [notice, setNotice] = useState("");
   const [rfq, setRfq] = useState(false);
   const [manualLot, setManualLot] = useState(false);
+  const [manualCrop, setManualCrop] = useState("Onion");
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("kisaan_setu_token") || localStorage.getItem("kisaan_setu_demo")));
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authError, setAuthError] = useState("");
@@ -151,6 +164,14 @@ function App() {
   const sampleInputRef = useRef<HTMLInputElement>(null);
   const selectedLanguage = languageOptions.find((option) => option.code === language);
   const labels = copy[selectedLanguage?.fallback || "en"];
+  const currentDate = new Date();
+  const displayDate = Number.isNaN(currentDate.getTime()) ? new Date("2026-09-22") : currentDate;
+  const dateLabel = displayDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }).toUpperCase();
+  useEffect(() => {
+    if (!authenticated) return;
+    if (activeTab === "prices") api.get("/dashboard/prices").then((response) => { if (response.data.length) setPrices(response.data); }).catch(() => undefined);
+    if (activeTab === "activity") api.get("/dashboard/activity").then((response) => setActivity(response.data)).catch(() => undefined);
+  }, [activeTab, authenticated]);
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthError("");
@@ -205,6 +226,11 @@ function App() {
     }
     setManualLot(false);
   };
+  const selectedCropPrices = prices.filter((price) => price.cropName.toLowerCase() === manualCrop.toLowerCase());
+  const suggestedRate = selectedCropPrices.length ? Math.round(selectedCropPrices.reduce((sum, price) => sum + Number(price.modalPrice), 0) / selectedCropPrices.length) : 0;
+  const refreshActivity = async () => { try { const response = await api.get("/dashboard/activity"); setActivity(response.data); } catch { setNotice("Connect the database to refresh activity."); } };
+  const offerLotToDemand = async (demandId: string, lotId: string) => { try { await api.post(`/demands/${demandId}/offers`, { lotId }); setNotice("Your lot was offered to the buyer."); await refreshActivity(); } catch (error) { setNotice(axios.isAxiosError(error) ? error.response?.data?.error || "This lot cannot meet the request." : "This lot cannot meet the request."); } };
+  const acceptFarmerOffer = async (offerId: string) => { try { await api.post(`/demands/offers/${offerId}/accept`); setNotice("Farmer and lot details shared with you. The order is now matched."); await refreshActivity(); } catch (error) { setNotice(axios.isAxiosError(error) ? error.response?.data?.error || "Offer could not be accepted." : "Offer could not be accepted."); } };
   const toggleLot = (id: string) =>
     setSelected((items) =>
       items.includes(id) ? items.filter((item) => item !== id) : [...items, id],
@@ -228,6 +254,8 @@ function App() {
   const gradeSample = async () => {
     if (!sampleFile) return;
     setGrading(true);
+    setGradeResult(null);
+    setNotice("Analyzing crop image...");
     const formData = new FormData();
     formData.append("image", sampleFile, sampleFile.name);
     try {
@@ -235,32 +263,46 @@ function App() {
         `${import.meta.env.VITE_ML_URL || "http://localhost:8000"}/grade-image`,
         formData,
       );
-      if (!response.data.predicted_grade) throw new Error("No grade returned");
-      setGradeResult({ grade: response.data.predicted_grade, confidence: response.data.confidence, score: response.data.quality_score, conclusion: response.data.conclusion, summary: response.data.report.summary, recommendation: response.data.report.recommendation, metrics: response.data.metrics });
+      const result = response.data;
+      if (!result?.predicted_grade) throw new Error("No grade returned by the analysis service");
+      const metrics = result.metrics || {};
+      const report = result.report || {};
+      setGradeResult({
+        grade: result.predicted_grade,
+        confidence: Number(result.confidence || 0),
+        score: Number(result.quality_score || 0),
+        conclusion: result.conclusion || "Analysis completed successfully.",
+        summary: report.summary || `${result.predicted_grade} analysis completed from the uploaded crop image.`,
+        recommendation: report.recommendation || "Review the image in good daylight before listing.",
+        metrics: { color_score: Number(metrics.color_score || 0), surface_uniformity: Number(metrics.surface_uniformity || 0), blemish_free_score: Number(metrics.blemish_free_score || 0) },
+      });
       setNotice(
         `${labels.ready}: ${response.data.predicted_grade} · ${Math.round(response.data.confidence * 100)}% confidence`,
       );
     } catch (error) {
       const detail = axios.isAxiosError(error) ? error.response?.data?.detail : "";
-      setNotice(detail || labels.gradingUnavailable);
+      setNotice(detail || (error instanceof Error ? error.message : labels.gradingUnavailable));
     }
     setGrading(false);
   };
   const createRfq = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setNotice(language === "hi" ? "आरएफक्यू सत्यापित किसान नेटवर्क पर प्रकाशित हुआ" : language === "mr" ? "आरएफक्यू सत्यापित शेतकरी नेटवर्कवर प्रकाशित झाले" : "RFQ published to verified farmer networks");
-    setRfq(false);
+    const form = new FormData(event.currentTarget);
+    const cropName = String(form.get("cropName") || "").trim();
+    const targetGrade = String(form.get("targetGrade") || "GRADE_A");
+    const requiredQuantityKg = Number(form.get("requiredQuantityKg"));
+    const maxPrice = Number(form.get("maxPrice"));
+    const destinationPincode = String(form.get("destinationPincode") || "").trim();
+    if (!cropName || !["GRADE_A", "GRADE_B", "GRADE_C"].includes(targetGrade) || requiredQuantityKg <= 0 || maxPrice <= 0 || !/^\d{6}$/.test(destinationPincode)) { setNotice("Enter a crop, valid quantity, price, and 6-digit destination pincode."); return; }
     try {
-      await api.post("/demands/create", {
-        cropName: "Onion",
-        targetGrade: "GRADE_A",
-        requiredQuantityKg: 500,
-        maxPrice: 2600,
-        destinationPincode: "411001",
-      });
+      await api.post("/demands/create", { cropName, targetGrade, requiredQuantityKg, maxPrice, destinationPincode });
+      setNotice(language === "hi" ? "आरएफक्यू सत्यापित किसान नेटवर्क पर प्रकाशित हुआ" : language === "mr" ? "आरएफक्यू सत्यापित शेतकरी नेटवर्कवर प्रकाशित झाले" : "RFQ published to verified farmer networks");
     } catch {
-      /* offline demo mode */
+      setActivity((current) => ({ ...current, demands: [{ id: `local-demand-${Date.now()}`, cropName, requiredQuantityKg, maxPrice, status: "OPEN", createdAt: new Date().toISOString() }, ...current.demands] }));
+      setNotice("RFQ saved locally for this demo. Connect PostgreSQL to share it with farmers.");
     }
+    setRfq(false);
+    await refreshActivity();
   };
   if (!authenticated) {
     return <div className="auth-shell"><div className="auth-card"><div className="brand"><span className="brand-mark"><Sprout size={19} /></span><span>Kisaan <b>Setu</b></span></div><p className="eyebrow">{labels.authTitle}</p><h1>{authMode === "login" ? labels.login : labels.register}</h1><form onSubmit={handleAuth}>{authMode === "register" && <label>{labels.name}<input name="name" required minLength={2} /></label>}<label>{labels.phone}<input name="phone" type="tel" inputMode="numeric" pattern="[0-9]{10}" placeholder="10 digit number" required /></label><label>{labels.password}<input name="password" type="password" minLength={8} required /></label>{authMode === "register" && <label>{labels.confirmPassword}<input name="confirmPassword" type="password" minLength={8} required /></label>}{authError && <div className="auth-error">{authError}</div>}<button className="primary-btn full" type="submit">{authMode === "login" ? labels.signIn : labels.createAccount}</button></form><p className="auth-note">{labels.authNote}</p><button className="demo-btn" onClick={enterDemoMode}>{labels.demoAccess}</button><p className="demo-note">{labels.demoNote}</p><p className="auth-switch">{authMode === "login" ? labels.noAccount : labels.hasAccount} <button onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>{authMode === "login" ? labels.switchRegister : labels.switchLogin}</button></p></div></div>;
@@ -277,9 +319,9 @@ function App() {
           </span>
         </div>
         <nav>
-          <button className="nav-active">{labels.marketplace}</button>
-          <button>{labels.prices}</button>
-          <button>{labels.activity}</button>
+          <button className={activeTab === "marketplace" ? "nav-active" : ""} onClick={() => setActiveTab("marketplace")}>{labels.marketplace}</button>
+          <button className={activeTab === "prices" ? "nav-active" : ""} onClick={() => setActiveTab("prices")}>{labels.prices}</button>
+          <button className={activeTab === "activity" ? "nav-active" : ""} onClick={() => setActiveTab("activity")}>{labels.activity}</button>
         </nav>
         <div className="header-actions">
           <label className="language-picker">
@@ -310,15 +352,15 @@ function App() {
       </header>
       {menu && (
         <div className="mobile-nav">
-          <button onClick={() => setMenu(false)}>{labels.marketplace}</button>
-          <button onClick={() => setMenu(false)}>{labels.prices}</button>
-          <button onClick={() => setMenu(false)}>{labels.activity}</button>
+          <button onClick={() => { setActiveTab("marketplace"); setMenu(false); }}>{labels.marketplace}</button>
+          <button onClick={() => { setActiveTab("prices"); setMenu(false); }}>{labels.prices}</button>
+          <button onClick={() => { setActiveTab("activity"); setMenu(false); }}>{labels.activity}</button>
         </div>
       )}
       <main>
         <section className="welcome-row">
           <div>
-            <p className="eyebrow">MAHARASHTRA · 17 SEPTEMBER 2026</p>
+            <p className="eyebrow">MAHARASHTRA · {dateLabel}</p>
             <h1>
               {labels.goodMorning},{" "}
               <em>{role === "farmer" ? "Suresh" : "FreshCart"}</em>
@@ -382,7 +424,7 @@ function App() {
             <small>{labels.acrossOrders}</small>
           </div>
         </section>
-        {role === "farmer" ? (
+        {activeTab === "marketplace" && (role === "farmer" ? (
           <>
             <div className="section-heading">
               <div>
@@ -403,9 +445,9 @@ function App() {
                   <BarChart3 size={23} className="panel-icon" />
                 </div>
                 <div className="price-row">
-                  <strong>
-                    ₹2,450<span>/qtl</span>
-                  </strong>
+                    <strong>
+                      ₹{Number(prices.find((price) => price.mandiName === "Nashik" && price.cropName === "Onion")?.modalPrice || 2450).toLocaleString("en-IN")}<span>/qtl</span>
+                    </strong>
                   <div className="delta">
                     <ArrowUpRight size={15} /> +6.8%
                   </div>
@@ -430,7 +472,7 @@ function App() {
                   <span className="dot" />
                   <div>
                     <b>{labels.sellWindow}</b>
-                    <p>22–25 September · {labels.expected} ₹2,580–2,650/qtl</p>
+                    <p>22–25 September · {labels.expected} ₹{Number(prices.find((price) => price.mandiName === "Nashik" && price.cropName === "Onion")?.maxPrice || 2650).toLocaleString("en-IN")}/qtl</p>
                   </div>
                   <ArrowUpRight size={17} />
                 </div>
@@ -459,7 +501,7 @@ function App() {
               </div>
               <button
                 className="primary-btn small"
-                onClick={() => setManualLot(true)}
+                onClick={() => { setManualCrop("Onion"); setManualLot(true); }}
               >
                 <Leaf size={16} /> {labels.addLot}
               </button>
@@ -558,7 +600,9 @@ function App() {
               </button>
             </section>
           </>
-        )}{" "}
+        ))}
+        {activeTab === "prices" && <section className="tab-view"><div className="section-heading"><div><p className="eyebrow">MAHARASHTRA MARKET DATA</p><h2>{labels.prices}</h2></div><Badge>{prices.length} records</Badge></div><div className="price-table">{prices.map((price) => <div className="price-table-row" key={`${price.mandiName}-${price.cropName}-${price.recordedDate}`}><div><b>{price.cropName}</b><span>{price.mandiName} Mandi · {new Date(price.recordedDate).toLocaleDateString("en-IN")}</span></div><strong>₹{Number(price.modalPrice).toLocaleString("en-IN")}<small>/qtl modal</small></strong><span>₹{Number(price.minPrice).toLocaleString("en-IN")} – ₹{Number(price.maxPrice).toLocaleString("en-IN")}<small> range · {price.arrivalVolumeTonnes} t arrivals</small></span></div>)}</div></section>}
+        {activeTab === "activity" && <section className="tab-view"><div className="section-heading"><div><p className="eyebrow">{role === "farmer" ? "FARMER WORKSPACE" : "BUYER WORKSPACE"}</p><h2>{labels.activity}</h2></div><Badge>{activity.lots.length + activity.demands.length + activity.transactions.length + activity.offers.length} events</Badge></div>{role === "farmer" ? <div className="activity-grid"><div className="panel"><h3>Open buyer requests</h3>{activity.openDemands.length ? activity.openDemands.map((demand) => { const compatible = activity.lots.find((lot) => lot.cropName.toLowerCase().includes(demand.cropName.toLowerCase()) && lot.qualityGrade === demand.targetGrade && lot.basePrice <= demand.maxPrice && lot.weightKg >= demand.requiredQuantityKg); return <div className="activity-row" key={demand.id}><div><b>{demand.cropName} · {demand.requiredQuantityKg} kg</b><span>Buyer: {demand.buyer.name} · up to ₹{demand.maxPrice}/qtl · {demand.destinationPincode}</span></div><button className="outline-btn" disabled={!compatible} onClick={() => compatible && offerLotToDemand(demand.id, compatible.id)}>{compatible ? "Offer matching lot" : "No matching lot"}</button></div>; }) : <p className="muted">No open buyer requests match yet.</p>}</div><div className="panel"><h3>Your offers</h3>{activity.offers.length ? activity.offers.map((offer) => <div className="activity-row" key={offer.id}><div><b>{offer.demand.cropName} · {offer.lot.variety}</b><span>{offer.lot.weightKg} kg · ₹{offer.lot.basePrice}/qtl</span></div><Badge tone={offer.status === "ACCEPTED" ? "green" : "orange"}>{offer.status}</Badge></div>) : <p className="muted">You have not offered a lot yet.</p>}</div></div> : <div className="activity-grid"><div className="panel"><h3>Your requests</h3>{activity.demands.length ? activity.demands.map((demand) => <div className="activity-row" key={demand.id}><div><b>{demand.cropName} · {demand.requiredQuantityKg} kg</b><span>Up to ₹{demand.maxPrice}/qtl</span></div><Badge>{demand.status}</Badge></div>) : <p className="muted">Publish an RFQ to receive farmer offers.</p>}</div><div className="panel"><h3>Farmer offers</h3>{activity.offers.length ? activity.offers.map((offer) => <div className="activity-row" key={offer.id}><div><b>{offer.farmer?.name} · {offer.lot.cropName}</b><span>{offer.lot.weightKg} kg · ₹{offer.lot.basePrice}/qtl · {offer.farmer?.phone}</span></div>{offer.status === "PENDING" ? <button className="outline-btn" onClick={() => acceptFarmerOffer(offer.id)}>Accept offer</button> : <Badge tone="green">{offer.status}</Badge>}</div>) : <p className="muted">Farmer offers will appear here.</p>}</div></div>}</section>}
       </main>
       {scan && (
         <div className="modal-backdrop">
@@ -608,18 +652,11 @@ function App() {
             </button>
             <p className="eyebrow">{labels.buyer}</p>
             <h2>{labels.publishRequirement}</h2>
-            <label>
-              {labels.crop}
-              <input defaultValue="Onion" />
-            </label>
-            <label>
-              {labels.quantity}
-              <input type="number" defaultValue="500" />
-            </label>
-            <label>
-              {labels.maximumPrice}
-              <input type="number" defaultValue="2600" />
-            </label>
+            <label>{labels.crop}<select name="cropName" defaultValue="Onion"><option>Onion</option><option>Soybean</option><option>Wheat</option><option>Tomato</option><option>Cotton</option></select></label>
+            <label>Target grade<select name="targetGrade" defaultValue="GRADE_A"><option value="GRADE_A">GRADE A</option><option value="GRADE_B">GRADE B</option><option value="GRADE_C">GRADE C</option></select></label>
+            <label>{labels.quantity}<input name="requiredQuantityKg" type="number" min="1" step="0.1" defaultValue="500" required /></label>
+            <label>{labels.maximumPrice}<input name="maxPrice" type="number" min="1" step="1" defaultValue="2600" required /></label>
+            <label>Destination pincode<input name="destinationPincode" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder="411001" required /></label>
             <button className="primary-btn full" type="submit">
               {labels.publishRfq} <ArrowUpRight size={15} />
             </button>
@@ -632,9 +669,10 @@ function App() {
             <button type="button" className="modal-close" onClick={() => setManualLot(false)}><X size={18} /></button>
             <p className="eyebrow">YOUR INVENTORY</p>
             <h2>Add lot manually</h2>
-            <label>Crop name<input name="cropName" placeholder="Onion" required /></label>
+            <label>Crop name<select name="cropName" value={manualCrop} onChange={(event) => setManualCrop(event.target.value)} required><option>Onion</option><option>Soybean</option><option>Wheat</option><option>Tomato</option><option>Cotton</option></select></label>
             <label>Variety<input name="variety" placeholder="Nashik Red" required /></label>
-            <div className="form-grid"><label>Weight (kg)<input name="weightKg" type="number" min="1" step="0.1" required /></label><label>Base price / qtl<input name="basePrice" type="number" min="1" step="1" required /></label></div>
+            {suggestedRate > 0 && <div className="rate-hint"><b>Latest market guidance</b><span>{manualCrop} modal average: ₹{suggestedRate.toLocaleString("en-IN")}/qtl</span><small>Use this rate as a starting point. Final price remains your choice.</small></div>}
+            <div className="form-grid"><label>Weight (kg)<input name="weightKg" type="number" min="1" step="0.1" required /></label><label>Base price / qtl<input name="basePrice" type="number" min="1" step="1" defaultValue={suggestedRate || undefined} required /></label></div>
             <label>Harvest date<input name="harvestDate" type="date" required /></label>
             <div className="form-grid"><label>Latitude (optional)<input name="latitude" type="number" step="any" /></label><label>Longitude (optional)<input name="longitude" type="number" step="any" /></label></div>
             <button className="primary-btn full" type="submit">Save lot <ArrowUpRight size={15} /></button>
