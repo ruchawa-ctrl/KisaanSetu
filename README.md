@@ -8,6 +8,15 @@ A Smart India Hackathon MVP for strengthening market linkages and price discover
 - `frontend`: Vite + React + Tailwind CSS dashboard for farmer, FPO, and buyer workflows.
 - `ml-service`: FastAPI service for a price-window forecast and OpenCV crop grading.
 
+## Included workflows
+
+- Role-based farmer and buyer registration/login with bcrypt password hashing and seven-day JWT sessions.
+- Indian mobile-number validation with optional `+91` or `91` country codes.
+- Personalized IST greeting using the authenticated user's name, plus profile initials.
+- Profile menu with logout and persistent dark-mode preference.
+- Farmer lot creation, crop-image grading, buyer RFQs, offers, escrow, and delivery verification.
+- Marketplace cards with multiple crops and city/state labels across Indian mandis.
+
 ## Run locally
 
 Prerequisites: Node.js 20+, Python 3.11+, Docker Desktop, and PostgreSQL (or Docker).
@@ -42,7 +51,16 @@ pip install -r requirements.txt
 uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Open `http://localhost:5173`. The development OTP is `123456` for seeded phone numbers such as `9000000001`. The frontend is also usable as a UI demo when the API is offline; set `VITE_API_URL` to point it at another API.
+Open `http://localhost:5173`. The frontend is also usable as a UI demo when the API is offline; set `VITE_API_URL` to point it at another API.
+
+Seeded demo accounts:
+
+| Account | Phone | Password |
+| --- | --- | --- |
+| Farmer | `9000000001` | `Kisaan@123` |
+| Buyer | `9000000003` | `Kisaan@123` |
+
+The development OTP is `123456` for seeded phone numbers.
 
 ## Docker Compose
 
@@ -61,7 +79,9 @@ $env:DATA_GOV_API_KEY = "your-data-gov-api-key"
 docker compose up -d
 ```
 
-Without `DATA_GOV_API_KEY`, the app labels the local seeded records as `DEMO MARKET DATA`; it does not present them as live prices.
+Without `DATA_GOV_API_KEY`, the app labels the local seeded records as `DEMO MARKET DATA`; it does not present them as live prices. The live response is marked with `X-Price-Source: data.gov.in`, while fallback responses use `X-Price-Source: local-seed-fallback`.
+
+The default resource ID is configurable with `DATA_GOV_RESOURCE_ID` if a different data.gov.in mandi resource is required.
 
 Available services:
 - Frontend: http://localhost:5173
@@ -71,7 +91,7 @@ Available services:
 
 ## API surface
 
-- `POST /api/v1/auth/register`, `POST /api/v1/auth/login`
+- `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`
 - `POST /api/v1/auth/otp`, `POST /api/v1/auth/verify`
 - `POST /api/v1/lots/create`, `GET /api/v1/lots`
 - `POST /api/v1/fpo/aggregate`
