@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   BarChart3,
+  Bot,
   Camera,
   CheckCircle2,
   CircleHelp,
@@ -9,8 +10,11 @@ import {
   Leaf,
   LogOut,
   Menu,
+  MessageSquareText,
+  Mic,
   Moon,
   ScanLine,
+  Send,
   ShieldCheck,
   Sprout,
   Sun,
@@ -49,7 +53,70 @@ const getInitials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0,
 type PriceRecord = { mandiName: string; cropName: string; modalPrice: number; minPrice: number; maxPrice: number; arrivalVolumeTonnes: number; recordedDate: string };
 type ActivityData = { lots: { id: string; cropName: string; variety: string; weightKg: number; qualityGrade: string; status: string; basePrice: number; createdAt: string }[]; demands: { id: string; cropName: string; requiredQuantityKg: number; maxPrice: number; status: string; createdAt: string }[]; transactions: { id: string; totalAmount: number; escrowStatus: string; createdAt: string; lot: { cropName: string; weightKg: number } }[]; offers: { id: string; status: string; message?: string; demand: { id: string; cropName: string; requiredQuantityKg: number; maxPrice: number; status: string; destinationPincode: string }; farmer?: { name: string; phone: string; verificationStatus: string; rating: number }; lot: { id: string; cropName: string; variety: string; weightKg: number; basePrice: number; qualityGrade: string; status: string } }[]; openDemands: { id: string; cropName: string; targetGrade: string; requiredQuantityKg: number; maxPrice: number; destinationPincode: string; createdAt: string; buyer: { name: string; verificationStatus: string } }[] };
 type SupportedLanguage = "en" | "hi" | "mr";
+type AssistantMessage = { id: number; sender: "user" | "bot"; text: string; language: SupportedLanguage };
 type Language = SupportedLanguage | "te" | "as" | "mai" | "hne" | "kok" | "gu" | "bg" | "sat" | "kn" | "ml" | "mni" | "kha" | "lus" | "ao" | "or" | "pa" | "raj" | "ne" | "ta" | "ur" | "bn" | "gar" | "bho" | "ks" | "sd" | "tcy";
+const assistantLanguageOptions: { code: SupportedLanguage; label: string }[] = [
+  { code: "en", label: "English" },
+  { code: "hi", label: "हिंदी" },
+  { code: "mr", label: "मराठी" },
+];
+const detectAssistantLanguage = (text: string): SupportedLanguage => {
+  const cleaned = text.trim();
+  if (!cleaned) return "en";
+  if (/[\u0900-\u097F]/.test(cleaned)) {
+    const lower = cleaned.toLowerCase();
+    const marathiKeywords = ["शेतकरी", "शेती", "किंमत", "कापणी", "बाजार", "ताजे", "पिक", "आवश्यक", "माल", "उत्पादन", "लेबर", "बारमाही", "सिंचन", "खत", "उत्पादन"]; 
+    if (marathiKeywords.some((keyword) => lower.includes(keyword.toLowerCase()))) {
+      return "mr";
+    }
+    return "hi";
+  }
+  return "en";
+};
+const buildAssistantReply = (message: string, language: SupportedLanguage): string => {
+  const lower = message.toLowerCase().trim();
+  const priceHints: Record<string, string> = {
+    en: "For most crops, check the mandi price in the Prices tab before selling. If you are growing onion or soybean, it is best to compare today’s rate with your local mandi before you decide.",
+    hi: "अधिकांश फसलों के लिए बेचने से पहले कीमतों वाली टैब से मंडी की कीमत की तुलना करें। अगर आप प्याज या सोयाबीन बेच रहे हैं, तो आज की कीमत अपने स्थानीय मंडी से तुलना करना सबसे सही रहेगा।",
+    mr: "बहुतेक पिकांची किंमत विकण्यापूर्वी किंमत टॅबमधून मंडयांच्या दराशी तुलना करा. प्याज किंवा सोयाबीन विकत असाल, तर आजचा दर तुमच्या स्थानिक मंडीत असल्याची पडताळणी करणे योग्य ठरेल.",
+  };
+  if (!lower || /(hi|hello|namaste|नमस्कार|नमस्ते|good morning|शुभ|नमस्कार)/.test(lower)) {
+    if (language === "hi") return "नमस्कार! मैं आपकी खेती, मंडी दर, और फसल सहायता में मदद कर सकता हूँ। आप मुझे कुछ भी पूछ सकते हैं, जैसे फसल का दाम, सिंचाई, कीट नियंत्रण, या बिक्री का सही समय।";
+    if (language === "mr") return "नमस्कार! मी शेतकरी मदत म्हणून तुमच्या पिकांच्या किंमती, सिंचन, कीटक नियंत्रण आणि विक्री वेळेवर मदत करू शकतो. काहीही विचारा.";
+    return "Hello! I can help with mandi prices, crop care, irrigation, pest control, and the best time to sell your produce.";
+  }
+  if (/(price|rate|mandi|qtl|cost|sell|market|कीमत|मूल्य|मंडी|बाजार|किंमत|विक्री)/.test(lower)) {
+    return priceHints[language] || priceHints.en;
+  }
+  if (/(water|irrigation|rain|dry|sowing|field|सिंचाई|पानी|खेत|सींच|रोग|कीट|दवा|of|कीटाणु)/.test(lower)) {
+    if (language === "hi") return "सिंचाई के लिए मिट्टी की नमी देखें, और अगर जमीन सूखी है तो उचित समय पर पानी दें। कीटों की समस्या होने पर फसल की अवस्था देखकर सुरक्षित कीटनाशक का उपयोग करें और अपने एग्री एक्सपर्ट से सलाह लें।";
+    if (language === "mr") return "सिंचनासाठी मातीतील ओलताकडे पाहा. जमीन कोरडी असल्यास योग्यवेळी पाणी द्या. कीटकांची समस्या असल्यास पिकाची अवस्था तपासा आणि सुरक्षित कीटकनाशक वापरा, गरज पडल्यास अॅग्री तज्ज्ञांची सल्ला घ्या.";
+    return "Check the soil moisture before irrigation. If the field is dry, water at the appropriate time. For pests, identify the issue first and use a safe treatment recommended for the crop.";
+  }
+  if (/(quality|grade|sample|crop|fresh|good|grace|गुणवत्ता|ग्रेड|नमूना|ताजे|उपज|श्रेणी)/.test(lower)) {
+    if (language === "hi") return "सामान्यतः अच्छी गुणवत्ता के लिए फसल को सही समय पर कटाई करें, साफ रखें और छाया में न रखें। अगर आप ग्रेडिंग करना चाहते हैं, तो 'AI QUALITY DESK' सेक्शन में नमूना अपलोड करें।";
+    if (language === "mr") return "चांगल्या गुणवत्तेसाठी पिकाची योग्यवेळी कापणी करा, स्वच्छ ठेवणं, आणि थंड जागी ठेवणं गरजेचं आहे. ग्रेडिंगसाठी AI QUALITY DESK मधील नमुना अपलोड करा.";
+    return "For better quality, harvest at the right time, keep the produce clean, and avoid storing it in direct sun. Use the AI QUALITY DESK to grade your crop sample.";
+  }
+  if (/(loan|money|scheme|subsidy|support|कर्ज|सहायता|योजना|अनुदान|लाभ)/.test(lower)) {
+    if (language === "hi") return "कृषि सहायता या अनुदान के लिए अपने क्षेत्र की कृषि कार्यालय, सहकारी बैंक, और FPO से संपर्क करें। अक्सर सिंचाई, बीज, और फसल बीमा योजनाओं पर सब्सिडी मिलती है।";
+    if (language === "mr") return "शेतीसाठी कर्ज किंवा अनुदान मिळवण्यासाठी आपल्या जिल्हा कृषी कार्यालय, सहकारी बँक किंवा FPO शी संपर्क करा. बारमाही, बियाणे आणि पीक विम्यांवर सवलत उपलब्ध असते.";
+    return "For crop loans, subsidies, or support schemes, contact your local agriculture office, cooperative bank, or nearby FPO. Many schemes support irrigation, seed, and crop insurance.";
+  }
+  if (/(weather|rain|forecast|season|monsoon|मौसम|बारिश|मौसमी|मानसून)/.test(lower)) {
+    if (language === "hi") return "मौसम के आधार पर सिंचाई और कटाई का समय तय करें। अगर बारिश का अनुमान है, तो तुरंत कटाई की योजना बनाएं ताकि फसल की गुणवत्ता खराब न हो।";
+    if (language === "mr") return "हवामानानुसार सिंचन आणि कापणीची वेळ ठरवा. पावसाचा अंदाज असल्यास पिकाची गुणवत्ता जपण्यासाठी लवकर कापणी किंवा संरक्षण करा.";
+    return "Time irrigation and harvest based on the weather forecast. If rain is expected, prepare early to protect crop quality and avoid losses.";
+  }
+  if (/(farmer|help|assistant|ask|question|किसान|मदद|सवाल|सल्ला)/.test(lower)) {
+    if (language === "hi") return "मैं आपकी फसल, मंडी मूल्य, बीज, सिंचाई, और बिक्री संबंधी सामान्य सवालों में मदद कर सकता हूँ। उदाहरण: 'मेरी फसल का भाव क्या है?', 'पानी कब देना है?', 'कीट नियंत्रण कैसे करें?'";
+    if (language === "mr") return "मी तुमच्या पिकांची किंमत, सिंचन, बियाणे, कीटक नियंत्रण आणि विक्रीशी संबंधित सामान्य प्रश्नांमध्ये मदत करू शकतो. उदाहरण: 'माझ्या पिकाची किंमत काय आहे?', 'पाणी कधी द्यायचे?', 'कीटक नियंत्रण कसे करायचे?'";
+    return "I can help with common farmer questions about crop price, irrigation, pest control, seed selection, and the best time to sell.";
+  }
+  if (language === "hi") return "मुझे आपके सवाल के बारे में अधिक स्पष्टता चाहिए. आप फसल, मंडी दर, सिंचाई, कीट नियंत्रण या बिक्री का समय पूछ सकते हैं.";
+  if (language === "mr") return "तुमच्या प्रश्नाबद्दल अधिक स्पष्टता हवी आहे. पिक, मंडी किंमत, सिंचन, कीटक नियंत्रण किंवा विक्रीची वेळ याबद्दल विचारा.";
+  return "I can help with that. Try asking about mandi prices, crop care, pest control, irrigation, or the best selling window for your produce.";
+};
 const languageOptions: { code: Language; label: string; state: string; fallback: SupportedLanguage }[] = [
   { code: "te", label: "తెలుగు", state: "Andhra Pradesh / Telangana", fallback: "en" },
   { code: "as", label: "অসমীয়া", state: "Assam", fallback: "en" },
@@ -168,6 +235,20 @@ function App() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("kisaan_setu_dark_mode") === "true");
   const [selected, setSelected] = useState<string[]>(["lot-1"]);
   const [notice, setNotice] = useState("");
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantLanguage, setAssistantLanguage] = useState<SupportedLanguage>("en");
+  const [assistantInput, setAssistantInput] = useState("");
+  const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([
+    {
+      id: 1,
+      sender: "bot",
+      text: "Hello! I can help with mandi prices, crop care, irrigation, and selling advice for farmers.",
+      language: "en",
+    },
+  ]);
+  const [assistantThinking, setAssistantThinking] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
   const [rfq, setRfq] = useState(false);
   const [manualLot, setManualLot] = useState(false);
   const [manualCrop, setManualCrop] = useState("Onion");
@@ -180,6 +261,7 @@ function App() {
   const [grading, setGrading] = useState(false);
   const [gradeResult, setGradeResult] = useState<{ grade: string; confidence: number; score: number; conclusion: string; summary: string; recommendation: string; metrics: { color_score: number; surface_uniformity: number; blemish_free_score: number } } | null>(null);
   const sampleInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
   const selectedLanguage = languageOptions.find((option) => option.code === language);
   const labels = copy[selectedLanguage?.fallback || "en"];
   const greeting = getGreeting(selectedLanguage?.fallback || "en");
@@ -214,6 +296,76 @@ function App() {
     if (activeTab === "prices") api.get("/dashboard/prices").then((response) => { if (response.data.length) setPrices(response.data); setPriceSource(response.headers["x-price-source"] === "data.gov.in" ? "live" : "demo"); }).catch(() => setPriceSource("demo"));
     if (activeTab === "activity") api.get("/dashboard/activity").then((response) => setActivity(response.data)).catch(() => undefined);
   }, [activeTab, authenticated]);
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setVoiceSupported(Boolean(SpeechRecognition));
+  }, []);
+  useEffect(() => {
+    if (language === "hi" || language === "mr") {
+      setAssistantLanguage(language);
+    }
+  }, [language]);
+  const sendAssistantMessage = async (messageOverride?: string) => {
+    const enteredText = (messageOverride ?? assistantInput).trim();
+    if (!enteredText) return;
+    const resolvedLanguage = detectAssistantLanguage(enteredText);
+    setAssistantLanguage(resolvedLanguage);
+    setAssistantInput("");
+    setAssistantThinking(true);
+    setAssistantMessages((current) => [
+      ...current,
+      { id: Date.now(), sender: "user", text: enteredText, language: resolvedLanguage },
+      { id: Date.now() + 1, sender: "bot", text: "...", language: resolvedLanguage },
+    ]);
+
+    try {
+      const response = await api.post('/assistant', {
+        message: enteredText,
+        language: resolvedLanguage,
+        context: `User role: ${role}. User language: ${resolvedLanguage}.`,
+      });
+      const reply = response.data?.reply || buildAssistantReply(enteredText, resolvedLanguage);
+      setAssistantMessages((current) => {
+        const filtered = current.filter((msg) => !((msg.sender === 'bot' && msg.text === '...') && msg.id === current[current.length - 1]?.id));
+        return [...filtered, { id: Date.now() + 2, sender: 'bot', text: reply, language: resolvedLanguage }];
+      });
+    } catch {
+      setAssistantMessages((current) => {
+        const filtered = current.filter((msg) => !(msg.sender === 'bot' && msg.text === '...'));
+        return [...filtered, { id: Date.now() + 3, sender: 'bot', text: buildAssistantReply(enteredText, resolvedLanguage), language: resolvedLanguage }];
+      });
+    } finally {
+      setAssistantThinking(false);
+    }
+  };
+  const startVoiceAssistant = () => {
+    if (!voiceSupported) {
+      setNotice(language === "hi" ? "आपके ब्राउज़र में वॉइस इनपुट उपलब्ध नहीं है।" : language === "mr" ? "तुमच्या ब्राउझरमध्ये व्हॉइस इनपुट उपलब्ध नाही." : "Voice input is not available in this browser.");
+      return;
+    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = assistantLanguage === "hi" ? "hi-IN" : assistantLanguage === "mr" ? "mr-IN" : "en-IN";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0]?.transcript || "")
+        .join(" ")
+        .trim();
+      if (transcript) {
+        sendAssistantMessage(transcript);
+      }
+    };
+    recognition.onerror = () => {
+      setNotice(language === "hi" ? "वॉइस पहचान में समस्या हुई। कृपया टेक्स्ट लिखें।" : language === "mr" ? "व्हॉइस ओळखीत समस्या आली. कृपया मजकूर टाइप करा." : "Voice recognition did not work. Please type your question instead.");
+      setVoiceListening(false);
+    };
+    recognition.onend = () => setVoiceListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setVoiceListening(true);
+  };
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthError("");
@@ -396,6 +548,7 @@ function App() {
             <span>{labels.language}</span>
             <select
               value={language}
+              size={Math.min(languageOptions.length, 18)}
               onChange={(event) => setLanguage(event.target.value as Language)}
               aria-label={labels.language}
             >
@@ -406,7 +559,7 @@ function App() {
               ))}
             </select>
           </label>
-          <button className="icon-btn" title={labels.help}>
+          <button className="icon-btn" title={labels.help} onClick={() => setAssistantOpen((open) => !open)}>
             <CircleHelp size={20} />
           </button>
           <div className="profile-menu-wrap">
@@ -664,6 +817,82 @@ function App() {
         {activeTab === "prices" && <section className="tab-view"><div className="section-heading"><div><p className="eyebrow">{priceSource === "live" ? "LIVE GOVERNMENT MARKET DATA" : "DEMO MARKET DATA"}</p><h2>{labels.prices}</h2></div><Badge>{prices.length} records</Badge></div><div className="price-table">{prices.map((price) => <div className="price-table-row" key={`${price.mandiName}-${price.cropName}-${price.recordedDate}`}><div><b>{price.cropName}</b><span>{price.mandiName} Mandi · {new Date(price.recordedDate).toLocaleDateString("en-IN")}</span></div><strong>₹{Number(price.modalPrice).toLocaleString("en-IN")}<small>/qtl modal</small></strong><span>₹{Number(price.minPrice).toLocaleString("en-IN")} – ₹{Number(price.maxPrice).toLocaleString("en-IN")}<small> range · {price.arrivalVolumeTonnes} t arrivals</small></span></div>)}</div></section>}
         {activeTab === "activity" && <section className="tab-view"><div className="section-heading"><div><p className="eyebrow">{role === "farmer" ? "FARMER WORKSPACE" : "BUYER WORKSPACE"}</p><h2>{labels.activity}</h2></div><Badge>{activity.lots.length + activity.demands.length + activity.transactions.length + activity.offers.length} events</Badge></div>{role === "farmer" ? <div className="activity-grid"><div className="panel"><h3>Open buyer requests</h3>{activity.openDemands.length ? activity.openDemands.map((demand) => { const compatible = activity.lots.find((lot) => lot.cropName.toLowerCase().includes(demand.cropName.toLowerCase()) && lot.qualityGrade === demand.targetGrade && lot.basePrice <= demand.maxPrice && lot.weightKg >= demand.requiredQuantityKg); return <div className="activity-row" key={demand.id}><div><b>{demand.cropName} · {demand.requiredQuantityKg} kg</b><span>Buyer: {demand.buyer.name} · up to ₹{demand.maxPrice}/qtl · {demand.destinationPincode}</span></div><button className="outline-btn" disabled={!compatible} onClick={() => compatible && offerLotToDemand(demand.id, compatible.id)}>{compatible ? "Offer matching lot" : "No matching lot"}</button></div>; }) : <p className="muted">No open buyer requests match yet.</p>}</div><div className="panel"><h3>Your offers</h3>{activity.offers.length ? activity.offers.map((offer) => <div className="activity-row" key={offer.id}><div><b>{offer.demand.cropName} · {offer.lot.variety}</b><span>{offer.lot.weightKg} kg · ₹{offer.lot.basePrice}/qtl</span></div><Badge tone={offer.status === "ACCEPTED" ? "green" : "orange"}>{offer.status}</Badge></div>) : <p className="muted">You have not offered a lot yet.</p>}</div></div> : <div className="activity-grid"><div className="panel"><h3>Your requests</h3>{activity.demands.length ? activity.demands.map((demand) => <div className="activity-row" key={demand.id}><div><b>{demand.cropName} · {demand.requiredQuantityKg} kg</b><span>Up to ₹{demand.maxPrice}/qtl</span></div><Badge>{demand.status}</Badge></div>) : <p className="muted">Publish an RFQ to receive farmer offers.</p>}</div><div className="panel"><h3>Farmer offers</h3>{activity.offers.length ? activity.offers.map((offer) => <div className="activity-row" key={offer.id}><div><b>{offer.farmer?.name} · {offer.lot.cropName}</b><span>{offer.lot.weightKg} kg · ₹{offer.lot.basePrice}/qtl · {offer.farmer?.phone}</span></div>{offer.status === "PENDING" ? <button className="outline-btn" onClick={() => acceptFarmerOffer(offer.id)}>Accept offer</button> : <Badge tone="green">{offer.status}</Badge>}</div>) : <p className="muted">Farmer offers will appear here.</p>}</div></div>}</section>}
       </main>
+      <button className="assistant-fab" onClick={() => setAssistantOpen(true)} aria-label="Open farmer assistant">
+        <MessageSquareText size={18} />
+        <span>Farmer help</span>
+      </button>
+      {assistantOpen && (
+        <div className="assistant-backdrop" onClick={() => setAssistantOpen(false)}>
+          <div className="assistant-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="assistant-header">
+              <div className="assistant-title-wrap">
+                <span className="assistant-icon"><Bot size={22} /></span>
+                <div>
+                  <small>{language === "hi" ? "किसान सहायक" : language === "mr" ? "शेतकरी मदत" : "Farmer assistant"}</small>
+                  <h3>{language === "hi" ? "सवाल पूछें" : language === "mr" ? "प्रश्न विचारा" : "Ask anything"}</h3>
+                </div>
+              </div>
+              <div className="assistant-tools">
+                <select value={assistantLanguage} onChange={(event) => {
+                  const nextLanguage = event.target.value as SupportedLanguage;
+                  setAssistantLanguage(nextLanguage);
+                  setAssistantMessages((current) => [
+                    ...current,
+                    { id: Date.now(), sender: 'bot', text: nextLanguage === 'hi' ? 'अब हिंदी में सहायता उपलब्ध है।' : nextLanguage === 'mr' ? 'आता मराठीत मदत उपलब्ध आहे.' : 'English is now active for your assistant.', language: nextLanguage },
+                  ]);
+                }}>
+                  {assistantLanguageOptions.map((option) => (
+                    <option key={option.code} value={option.code}>{option.label}</option>
+                  ))}
+                </select>
+                <button className="icon-btn" onClick={() => setAssistantOpen(false)} aria-label="Close assistant">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="assistant-message-list">
+              {assistantMessages.map((message) => (
+                <div key={message.id} className={`assistant-message ${message.sender}`}>
+                  <div className={`assistant-bubble ${message.sender === 'bot' ? 'bot-bubble' : 'user-bubble'} ${message.text === '...' ? 'typing' : ''}`}>
+                    {message.text === '...' ? (
+                      <span className="typing-dots"><i /><i /><i /></span>
+                    ) : (
+                      message.text
+                    )}
+                  </div>
+                </div>
+              ))}
+              {assistantThinking && (
+                <div className="assistant-message bot">
+                  <div className="assistant-bubble bot-bubble typing">
+                    <span className="typing-dots"><i /><i /><i /></span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <form
+              className="assistant-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void sendAssistantMessage();
+              }}
+            >
+              <input
+                value={assistantInput}
+                onChange={(event) => setAssistantInput(event.target.value)}
+                placeholder={language === "hi" ? "अपना सवाल लिखें..." : language === "mr" ? "तुमचा प्रश्न टाइप करा..." : "Type your question..."}
+                aria-label="Ask the farmer assistant"
+              />
+              <button type="button" className={`voice-btn ${voiceListening ? "active" : ""}`} onClick={startVoiceAssistant} aria-label="Use voice assistant">
+                <Mic size={17} />
+              </button>
+              <button type="submit" className="send-btn" aria-label="Send message">
+                <Send size={17} />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
       {scan && (
         <div className="modal-backdrop">
           <div className="modal">
