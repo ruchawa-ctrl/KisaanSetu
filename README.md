@@ -14,10 +14,10 @@ Prerequisites: Node.js 20+, Python 3.11+, Docker Desktop, and PostgreSQL (or Doc
 
 ```powershell
 git clone <repository-url>
-cd SIH
+cd KisaanSetu
 Copy-Item backend/.env.example backend/.env
-docker compose up -d
 npm install
+docker compose up -d postgres
 npm --workspace backend run prisma:generate
 npm --workspace backend run prisma:migrate -- --name init
 npm --workspace backend run prisma:seed
@@ -39,10 +39,35 @@ cd ml-service
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-uvicorn app:app --reload --port 8000
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Open `http://localhost:5173`. The development OTP is `123456` for seeded phone numbers such as `9000000001`. The frontend is also usable as a UI demo when the API is offline; set `VITE_API_URL` to point it at another API.
+
+## Docker Compose
+
+For the complete stack in one command:
+
+```powershell
+docker compose up --build
+```
+
+### Live mandi prices
+
+The dashboard prefers the Government of India's data.gov.in mandi-price API. Create an API key on [data.gov.in](https://data.gov.in/), set it before starting Compose, and the Prices tab will show the latest published government records:
+
+```powershell
+$env:DATA_GOV_API_KEY = "your-data-gov-api-key"
+docker compose up -d
+```
+
+Without `DATA_GOV_API_KEY`, the app labels the local seeded records as `DEMO MARKET DATA`; it does not present them as live prices.
+
+Available services:
+- Frontend: http://localhost:5173
+- Backend: http://localhost:4000
+- ML service: http://localhost:8000
+- PostgreSQL: localhost:5432
 
 ## API surface
 

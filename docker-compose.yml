@@ -5,7 +5,62 @@ services:
       POSTGRES_DB: kisaan_setu
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports: ["5432:5432"]
-    volumes: [kisaan-setu-postgres:/var/lib/postgresql/data]
+    ports:
+      - "5432:5432"
+    volumes:
+      - kisaan-setu-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kisaan_setu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/kisaan_setu?schema=public
+      JWT_SECRET: replace-with-a-long-secret
+      DATA_GOV_API_KEY: ${DATA_GOV_API_KEY:-}
+      DATA_GOV_RESOURCE_ID: ${DATA_GOV_RESOURCE_ID:-9ef84268-d588-465a-a308-a864a43d0070}
+      PORT: "4000"
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: sh -c "npm run prisma:generate && npm run prisma:migrate -- --name init && npm run dev"
+    working_dir: /app
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:4000/api/v1
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: sh -c "npm run dev -- --host 0.0.0.0"
+    working_dir: /app
+
+  ml-service:
+    build:
+      context: ./ml-service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ml-service:/app
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      PYTHONUNBUFFERED: "1"
+
 volumes:
   kisaan-setu-postgres:

@@ -7,10 +7,13 @@ import {
   CircleHelp,
   HandCoins,
   Leaf,
+  LogOut,
   Menu,
+  Moon,
   ScanLine,
   ShieldCheck,
   Sprout,
+  Sun,
   Truck,
   X,
 } from "lucide-react";
@@ -22,6 +25,27 @@ const storedToken = localStorage.getItem("kisaan_setu_token");
 if (storedToken) api.defaults.headers.common.Authorization = `Bearer ${storedToken}`;
 type Role = "farmer" | "buyer";
 type DashboardTab = "marketplace" | "prices" | "activity";
+const normalizePhone = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  return digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits;
+};
+const getCropVisual = (crop: string) => {
+  const name = crop.toLowerCase();
+  if (name.includes("onion")) return "🧅";
+  if (name.includes("soybean")) return "🫘";
+  if (name.includes("tomato")) return "🍅";
+  if (name.includes("potato")) return "🥔";
+  if (name.includes("chilli")) return "🌶️";
+  if (name.includes("maize") || name.includes("corn")) return "🌽";
+  return "🌾";
+};
+const getGreeting = (fallback: SupportedLanguage) => {
+  const hour = Number(new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", hour12: false }).format(new Date()));
+  if (fallback === "hi") return hour < 12 ? "सुप्रभात" : hour < 17 ? "शुभ दोपहर" : "शुभ संध्या";
+  if (fallback === "mr") return hour < 12 ? "शुभ सकाळ" : hour < 17 ? "शुभ दुपार" : "शुभ संध्याकाळ";
+  return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+};
+const getInitials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "KS";
 type PriceRecord = { mandiName: string; cropName: string; modalPrice: number; minPrice: number; maxPrice: number; arrivalVolumeTonnes: number; recordedDate: string };
 type ActivityData = { lots: { id: string; cropName: string; variety: string; weightKg: number; qualityGrade: string; status: string; basePrice: number; createdAt: string }[]; demands: { id: string; cropName: string; requiredQuantityKg: number; maxPrice: number; status: string; createdAt: string }[]; transactions: { id: string; totalAmount: number; escrowStatus: string; createdAt: string; lot: { cropName: string; weightKg: number } }[]; offers: { id: string; status: string; message?: string; demand: { id: string; cropName: string; requiredQuantityKg: number; maxPrice: number; status: string; destinationPincode: string }; farmer?: { name: string; phone: string; verificationStatus: string; rating: number }; lot: { id: string; cropName: string; variety: string; weightKg: number; basePrice: number; qualityGrade: string; status: string } }[]; openDemands: { id: string; cropName: string; targetGrade: string; requiredQuantityKg: number; maxPrice: number; destinationPincode: string; createdAt: string; buyer: { name: string; verificationStatus: string } }[] };
 type SupportedLanguage = "en" | "hi" | "mr";
@@ -96,38 +120,28 @@ const copy = {
   },
 } as const;
 const defaultLots = [
-  {
-    id: "lot-1",
-    crop: "Nashik Red Onion",
-    grade: "GRADE A",
-    weight: "820 kg",
-    price: "₹2,450",
-    farmer: "Suresh Patil",
-    verified: true,
-  },
-  {
-    id: "lot-2",
-    crop: "Latur Soybean",
-    grade: "GRADE B",
-    weight: "1,240 kg",
-    price: "₹4,720",
-    farmer: "Mahalaxmi FPO",
-    verified: true,
-  },
-  {
-    id: "lot-3",
-    crop: "Pune Onion",
-    grade: "GRADE A",
-    weight: "560 kg",
-    price: "₹2,310",
-    farmer: "Green Valley FPO",
-    verified: true,
-  },
+  { id: "lot-1", crop: "Nashik Red Onion", location: "Nashik", state: "Maharashtra", grade: "GRADE A", weight: "820 kg", price: "₹2,450", farmer: "Suresh Patil", verified: true },
+  { id: "lot-2", crop: "Latur Soybean", location: "Latur", state: "Maharashtra", grade: "GRADE B", weight: "1,240 kg", price: "₹4,720", farmer: "Mahalaxmi FPO", verified: true },
+  { id: "lot-3", crop: "Pune Onion", location: "Pune", state: "Maharashtra", grade: "GRADE A", weight: "560 kg", price: "₹2,310", farmer: "Green Valley FPO", verified: true },
+  { id: "lot-4", crop: "Azadpur Tomato", location: "Azadpur", state: "Delhi", grade: "GRADE A", weight: "940 kg", price: "₹2,180", farmer: "North Star FPO", verified: true },
+  { id: "lot-5", crop: "Indore Wheat", location: "Indore", state: "Madhya Pradesh", grade: "GRADE A", weight: "2,400 kg", price: "₹2,680", farmer: "Malwa Growers", verified: true },
+  { id: "lot-6", crop: "Bengaluru Maize", location: "Bengaluru", state: "Karnataka", grade: "GRADE B", weight: "1,680 kg", price: "₹2,240", farmer: "Deccan Harvest FPO", verified: true },
+  { id: "lot-7", crop: "Guntur Chilli", location: "Guntur", state: "Andhra Pradesh", grade: "GRADE A", weight: "430 kg", price: "₹8,950", farmer: "Krishna Valley FPO", verified: true },
+  { id: "lot-8", crop: "Kolkata Rice", location: "Kolkata", state: "West Bengal", grade: "GRADE A", weight: "3,200 kg", price: "₹3,420", farmer: "Delta Grain Collective", verified: true },
+  { id: "lot-9", crop: "Jaipur Mustard", location: "Jaipur", state: "Rajasthan", grade: "GRADE B", weight: "1,100 kg", price: "₹5,680", farmer: "Aravali Farmers FPO", verified: true },
+  { id: "lot-10", crop: "Lucknow Potato", location: "Lucknow", state: "Uttar Pradesh", grade: "GRADE A", weight: "1,920 kg", price: "₹1,860", farmer: "Awadh Fresh Collective", verified: true },
 ];
 const fallbackPrices: PriceRecord[] = [
-  { mandiName: "Nashik", cropName: "Onion", modalPrice: 2450, minPrice: 2200, maxPrice: 2630, arrivalVolumeTonnes: 124, recordedDate: "2026-09-22" },
-  { mandiName: "Pune", cropName: "Onion", modalPrice: 2310, minPrice: 2080, maxPrice: 2490, arrivalVolumeTonnes: 98, recordedDate: "2026-09-22" },
-  { mandiName: "Latur", cropName: "Soybean", modalPrice: 4720, minPrice: 4490, maxPrice: 4910, arrivalVolumeTonnes: 156, recordedDate: "2026-09-22" },
+  { mandiName: "Nashik, Maharashtra", cropName: "Onion", modalPrice: 2450, minPrice: 2200, maxPrice: 2630, arrivalVolumeTonnes: 124, recordedDate: "2026-09-22" },
+  { mandiName: "Pune, Maharashtra", cropName: "Onion", modalPrice: 2310, minPrice: 2080, maxPrice: 2490, arrivalVolumeTonnes: 98, recordedDate: "2026-09-22" },
+  { mandiName: "Latur, Maharashtra", cropName: "Soybean", modalPrice: 4720, minPrice: 4490, maxPrice: 4910, arrivalVolumeTonnes: 156, recordedDate: "2026-09-22" },
+  { mandiName: "Azadpur, Delhi", cropName: "Tomato", modalPrice: 2180, minPrice: 1900, maxPrice: 2360, arrivalVolumeTonnes: 210, recordedDate: "2026-09-22" },
+  { mandiName: "Indore, Madhya Pradesh", cropName: "Wheat", modalPrice: 2680, minPrice: 2540, maxPrice: 2810, arrivalVolumeTonnes: 342, recordedDate: "2026-09-22" },
+  { mandiName: "Bengaluru, Karnataka", cropName: "Maize", modalPrice: 2240, minPrice: 2100, maxPrice: 2390, arrivalVolumeTonnes: 188, recordedDate: "2026-09-22" },
+  { mandiName: "Guntur, Andhra Pradesh", cropName: "Chilli", modalPrice: 8950, minPrice: 8120, maxPrice: 9640, arrivalVolumeTonnes: 74, recordedDate: "2026-09-22" },
+  { mandiName: "Kolkata, West Bengal", cropName: "Rice", modalPrice: 3420, minPrice: 3190, maxPrice: 3680, arrivalVolumeTonnes: 276, recordedDate: "2026-09-22" },
+  { mandiName: "Jaipur, Rajasthan", cropName: "Mustard", modalPrice: 5680, minPrice: 5420, maxPrice: 5910, arrivalVolumeTonnes: 164, recordedDate: "2026-09-22" },
+  { mandiName: "Lucknow, Uttar Pradesh", cropName: "Potato", modalPrice: 1860, minPrice: 1640, maxPrice: 2040, arrivalVolumeTonnes: 232, recordedDate: "2026-09-22" },
 ];
 const fallbackActivity: ActivityData = { lots: defaultLots.map((lot) => ({ id: lot.id, cropName: lot.crop, variety: "Demo lot", weightKg: Number(lot.weight.replace(/[^0-9.]/g, "").replace(",", "")), qualityGrade: lot.grade.replace(" ", "_"), status: "LISTED", basePrice: Number(lot.price.replace(/[^0-9]/g, "")), createdAt: "2026-09-22" })), demands: [], transactions: [], offers: [], openDemands: [] };
 function Badge({
@@ -140,14 +154,18 @@ function Badge({
   return <span className={`badge ${tone}`}>{children}</span>;
 }
 function App() {
-  const [role, setRole] = useState<Role>("farmer");
+  const [role, setRole] = useState<Role>(() => localStorage.getItem("kisaan_setu_role") === "buyer" ? "buyer" : "farmer");
+  const [userName, setUserName] = useState(() => localStorage.getItem("kisaan_setu_user_name") || (localStorage.getItem("kisaan_setu_role") === "buyer" ? "FreshCart" : "Suresh"));
   const [activeTab, setActiveTab] = useState<DashboardTab>("marketplace");
   const [lots, setLots] = useState(defaultLots);
   const [prices, setPrices] = useState<PriceRecord[]>(fallbackPrices);
+  const [priceSource, setPriceSource] = useState<"live" | "demo">("demo");
   const [activity, setActivity] = useState<ActivityData>(fallbackActivity);
   const [language, setLanguage] = useState<Language>("en");
   const [scan, setScan] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("kisaan_setu_dark_mode") === "true");
   const [selected, setSelected] = useState<string[]>(["lot-1"]);
   const [notice, setNotice] = useState("");
   const [rfq, setRfq] = useState(false);
@@ -164,12 +182,36 @@ function App() {
   const sampleInputRef = useRef<HTMLInputElement>(null);
   const selectedLanguage = languageOptions.find((option) => option.code === language);
   const labels = copy[selectedLanguage?.fallback || "en"];
+  const greeting = getGreeting(selectedLanguage?.fallback || "en");
   const currentDate = new Date();
   const displayDate = Number.isNaN(currentDate.getTime()) ? new Date("2026-09-22") : currentDate;
   const dateLabel = displayDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }).toUpperCase();
   useEffect(() => {
+    document.documentElement.dataset.theme = darkMode ? "dark" : "light";
+    localStorage.setItem("kisaan_setu_dark_mode", String(darkMode));
+  }, [darkMode]);
+  useEffect(() => {
+    if (!authenticated || localStorage.getItem("kisaan_setu_user_name")) return;
+    api.get("/auth/me").then((response) => {
+      const name = String(response.data.user?.name || "");
+      if (!name) return;
+      const authenticatedRole: Role = response.data.user?.role === "BUYER" ? "buyer" : "farmer";
+      localStorage.setItem("kisaan_setu_user_name", name);
+      localStorage.setItem("kisaan_setu_role", authenticatedRole);
+      setUserName(name);
+      setRole(authenticatedRole);
+    }).catch((error) => {
+      if (!axios.isAxiosError(error) || error.response?.status !== 401) return;
+      localStorage.removeItem("kisaan_setu_token");
+      localStorage.removeItem("kisaan_setu_demo");
+      localStorage.removeItem("kisaan_setu_role");
+      delete api.defaults.headers.common.Authorization;
+      setAuthenticated(false);
+    });
+  }, [authenticated]);
+  useEffect(() => {
     if (!authenticated) return;
-    if (activeTab === "prices") api.get("/dashboard/prices").then((response) => { if (response.data.length) setPrices(response.data); }).catch(() => undefined);
+    if (activeTab === "prices") api.get("/dashboard/prices").then((response) => { if (response.data.length) setPrices(response.data); setPriceSource(response.headers["x-price-source"] === "data.gov.in" ? "live" : "demo"); }).catch(() => setPriceSource("demo"));
     if (activeTab === "activity") api.get("/dashboard/activity").then((response) => setActivity(response.data)).catch(() => undefined);
   }, [activeTab, authenticated]);
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
@@ -177,22 +219,48 @@ function App() {
     setAuthError("");
     const form = new FormData(event.currentTarget);
     const password = String(form.get("password") || "");
+    const phone = normalizePhone(String(form.get("phone") || ""));
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setAuthError("Enter a valid Indian phone number with 10 digits, optionally prefixed with +91.");
+      return;
+    }
     if (authMode === "register" && password !== String(form.get("confirmPassword") || "")) {
       setAuthError(language === "hi" ? "पासवर्ड मेल नहीं खाते" : language === "mr" ? "पासवर्ड जुळत नाहीत" : "Passwords do not match");
       return;
     }
     try {
-      const response = await api.post(`/auth/${authMode}`, authMode === "register" ? { name: form.get("name"), phone: form.get("phone"), password, language: language === "mr" ? "MARATHI" : language === "hi" ? "HINDI" : "ENGLISH" } : { phone: form.get("phone"), password });
+      const response = await api.post(`/auth/${authMode}`, authMode === "register" ? { name: form.get("name"), phone, password, role: role === "farmer" ? "FARMER" : "BUYER", language: language === "mr" ? "MARATHI" : language === "hi" ? "HINDI" : "ENGLISH" } : { phone, password, role: role === "farmer" ? "FARMER" : "BUYER" });
       localStorage.setItem("kisaan_setu_token", response.data.token);
+      const authenticatedRole: Role = response.data.user?.role === "BUYER" ? "buyer" : "farmer";
+      const authenticatedName = String(response.data.user?.name || (authenticatedRole === "buyer" ? "FreshCart" : "Suresh"));
+      localStorage.setItem("kisaan_setu_role", authenticatedRole);
+      localStorage.setItem("kisaan_setu_user_name", authenticatedName);
       api.defaults.headers.common.Authorization = `Bearer ${response.data.token}`;
+      setRole(authenticatedRole);
+      setUserName(authenticatedName);
       setAuthenticated(true);
     } catch (error) {
       setAuthError(axios.isAxiosError(error) ? error.response?.data?.error || "Authentication failed" : "Authentication failed");
     }
   };
   const enterDemoMode = () => {
+    const demoName = role === "buyer" ? "FreshCart" : "Suresh";
     localStorage.setItem("kisaan_setu_demo", "true");
+    localStorage.setItem("kisaan_setu_role", role);
+    localStorage.setItem("kisaan_setu_user_name", demoName);
+    setUserName(demoName);
     setAuthenticated(true);
+  };
+  const logout = () => {
+    localStorage.removeItem("kisaan_setu_token");
+    localStorage.removeItem("kisaan_setu_demo");
+    localStorage.removeItem("kisaan_setu_role");
+    localStorage.removeItem("kisaan_setu_user_name");
+    delete api.defaults.headers.common.Authorization;
+    setAuthenticated(false);
+    setProfileOpen(false);
+    setAuthMode("login");
+    setRole("farmer");
   };
   const openScan = () => {
     setGradeResult(null);
@@ -216,7 +284,7 @@ function App() {
       setNotice("Enter crop, variety, weight, price, and harvest date.");
       return;
     }
-    const newLot = { id: `local-${Date.now()}`, crop: `${cropName} · ${variety}`, grade: "PENDING", weight: `${weightKg} kg`, price: `₹${basePrice.toLocaleString("en-IN")}`, farmer: "You", verified: false };
+    const newLot = { id: `local-${Date.now()}`, crop: `${cropName} · ${variety}`, location: "Your farm", state: "Maharashtra", grade: "PENDING", weight: `${weightKg} kg`, price: `₹${basePrice.toLocaleString("en-IN")}`, farmer: "You", verified: false };
     setLots((current) => [newLot, ...current]);
     try {
       await api.post("/lots/create", { cropName, variety, weightKg, basePrice, harvestDate, latitude, longitude, sampleImageUrls: [] });
@@ -305,7 +373,7 @@ function App() {
     await refreshActivity();
   };
   if (!authenticated) {
-    return <div className="auth-shell"><div className="auth-card"><div className="brand"><span className="brand-mark"><Sprout size={19} /></span><span>Kisaan <b>Setu</b></span></div><p className="eyebrow">{labels.authTitle}</p><h1>{authMode === "login" ? labels.login : labels.register}</h1><form onSubmit={handleAuth}>{authMode === "register" && <label>{labels.name}<input name="name" required minLength={2} /></label>}<label>{labels.phone}<input name="phone" type="tel" inputMode="numeric" pattern="[0-9]{10}" placeholder="10 digit number" required /></label><label>{labels.password}<input name="password" type="password" minLength={8} required /></label>{authMode === "register" && <label>{labels.confirmPassword}<input name="confirmPassword" type="password" minLength={8} required /></label>}{authError && <div className="auth-error">{authError}</div>}<button className="primary-btn full" type="submit">{authMode === "login" ? labels.signIn : labels.createAccount}</button></form><p className="auth-note">{labels.authNote}</p><button className="demo-btn" onClick={enterDemoMode}>{labels.demoAccess}</button><p className="demo-note">{labels.demoNote}</p><p className="auth-switch">{authMode === "login" ? labels.noAccount : labels.hasAccount} <button onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>{authMode === "login" ? labels.switchRegister : labels.switchLogin}</button></p></div></div>;
+    return <div className="auth-shell"><div className="auth-card"><div className="brand"><span className="brand-mark"><Sprout size={19} /></span><span>Kisaan <b>Setu</b></span></div><p className="eyebrow">{labels.authTitle}</p><h1>{authMode === "login" ? labels.login : labels.register}</h1><div className="auth-role-picker" aria-label="Choose account type"><button type="button" className={role === "farmer" ? "selected" : ""} onClick={() => { setRole("farmer"); setAuthError(""); }}><Sprout size={17} />{labels.farmer}<small>Sell and manage harvest</small></button><button type="button" className={role === "buyer" ? "selected" : ""} onClick={() => { setRole("buyer"); setAuthError(""); }}><HandCoins size={17} />{labels.buyer}<small>Source verified produce</small></button></div><form onSubmit={handleAuth}>{authMode === "register" && <label>{labels.name}<input name="name" required minLength={2} /></label>}<label>{labels.phone}<input name="phone" type="tel" inputMode="tel" pattern="(?:\\+91|91)?[6-9][0-9]{9}" maxLength={14} placeholder="10 digits or +91 10 digits" required /></label><label>{labels.password}<input name="password" type="password" minLength={8} required /></label>{authMode === "register" && <label>{labels.confirmPassword}<input name="confirmPassword" type="password" minLength={8} required /></label>}{authError && <div className="auth-error">{authError}</div>}<button className="primary-btn full" type="submit">{authMode === "login" ? labels.signIn : labels.createAccount}</button></form><p className="auth-note">{labels.authNote}</p><button className="demo-btn" onClick={enterDemoMode}>{labels.demoAccess}</button><p className="demo-note">{labels.demoNote}</p><p className="auth-switch">{authMode === "login" ? labels.noAccount : labels.hasAccount} <button onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>{authMode === "login" ? labels.switchRegister : labels.switchLogin}</button></p></div></div>;
   }
   return (
     <div className="app-shell">
@@ -341,7 +409,13 @@ function App() {
           <button className="icon-btn" title={labels.help}>
             <CircleHelp size={20} />
           </button>
-          <button className="profile">SP</button>
+          <div className="profile-menu-wrap">
+            <button className="profile" aria-label="Open profile menu" aria-expanded={profileOpen} onClick={() => setProfileOpen((open) => !open)}>{getInitials(userName)}</button>
+            {profileOpen && <div className="profile-menu">
+              <button onClick={() => setDarkMode((enabled) => !enabled)}><span>{darkMode ? <Sun size={16} /> : <Moon size={16} />} Dark mode</span><span className={`toggle ${darkMode ? "on" : ""}`}><i /></span></button>
+              <button onClick={logout}><span><LogOut size={16} /> Log out</span></button>
+            </div>}
+          </div>
           <button
             className="mobile-menu icon-btn"
             onClick={() => setMenu(!menu)}
@@ -362,8 +436,8 @@ function App() {
           <div>
             <p className="eyebrow">MAHARASHTRA · {dateLabel}</p>
             <h1>
-              {labels.goodMorning},{" "}
-              <em>{role === "farmer" ? "Suresh" : "FreshCart"}</em>
+              {greeting},{" "}
+              <em>{userName}</em>
             </h1>
             <p className="muted">
               {role === "farmer"
@@ -371,21 +445,7 @@ function App() {
                 : labels.buyerIntro}
             </p>
           </div>
-          <div className="role-switch">
-            <span>{labels.viewingAs}</span>
-            <button
-              className={role === "farmer" ? "selected" : ""}
-              onClick={() => setRole("farmer")}
-            >
-              <Sprout size={15} /> {labels.farmer}
-            </button>
-            <button
-              className={role === "buyer" ? "selected" : ""}
-              onClick={() => setRole("buyer")}
-            >
-              <HandCoins size={15} /> {labels.buyer}
-            </button>
-          </div>
+          <div className="role-switch"><span>{labels.viewingAs}</span><strong>{role === "farmer" ? labels.farmer : labels.buyer}</strong></div>
         </section>
         {notice && (
           <div className="notice">
@@ -510,11 +570,11 @@ function App() {
               {lots.map((lot) => (
                 <div className="lot-row" key={lot.id}>
                   <div className="crop-icon">
-                    <Leaf size={18} />
+                    <span className="crop-visual" role="img" aria-label={lot.crop}>{getCropVisual(lot.crop)}</span>
                   </div>
                   <div className="lot-info">
                     <b>{lot.crop}</b>
-                    <span>{lot.weight} · {labels.listed}</span>
+                    <span>{lot.location}, {lot.state} · {lot.weight} · {labels.listed}</span>
                   </div>
                   <Badge tone={lot.grade === "GRADE A" ? "green" : "orange"}>
                     {lot.grade}
@@ -545,13 +605,13 @@ function App() {
               {lots.map((lot) => (
                 <div className="market-card" key={lot.id}>
                   <div className="market-image">
-                    <Leaf size={38} />
+                    <span className="crop-visual large" role="img" aria-label={lot.crop}>{getCropVisual(lot.crop)}</span>
                     <Badge>{lot.grade}</Badge>
                   </div>
                   <div className="market-body">
                     <div className="crop-line">
                       <h3>{lot.crop}</h3>
-                      <span>{lot.weight}</span>
+                      <span>{lot.location}, {lot.state} · {lot.weight}</span>
                     </div>
                     <p className="farmer-line">
                       {lot.farmer} {lot.verified && <ShieldCheck size={15} />}
@@ -601,7 +661,7 @@ function App() {
             </section>
           </>
         ))}
-        {activeTab === "prices" && <section className="tab-view"><div className="section-heading"><div><p className="eyebrow">MAHARASHTRA MARKET DATA</p><h2>{labels.prices}</h2></div><Badge>{prices.length} records</Badge></div><div className="price-table">{prices.map((price) => <div className="price-table-row" key={`${price.mandiName}-${price.cropName}-${price.recordedDate}`}><div><b>{price.cropName}</b><span>{price.mandiName} Mandi · {new Date(price.recordedDate).toLocaleDateString("en-IN")}</span></div><strong>₹{Number(price.modalPrice).toLocaleString("en-IN")}<small>/qtl modal</small></strong><span>₹{Number(price.minPrice).toLocaleString("en-IN")} – ₹{Number(price.maxPrice).toLocaleString("en-IN")}<small> range · {price.arrivalVolumeTonnes} t arrivals</small></span></div>)}</div></section>}
+        {activeTab === "prices" && <section className="tab-view"><div className="section-heading"><div><p className="eyebrow">{priceSource === "live" ? "LIVE GOVERNMENT MARKET DATA" : "DEMO MARKET DATA"}</p><h2>{labels.prices}</h2></div><Badge>{prices.length} records</Badge></div><div className="price-table">{prices.map((price) => <div className="price-table-row" key={`${price.mandiName}-${price.cropName}-${price.recordedDate}`}><div><b>{price.cropName}</b><span>{price.mandiName} Mandi · {new Date(price.recordedDate).toLocaleDateString("en-IN")}</span></div><strong>₹{Number(price.modalPrice).toLocaleString("en-IN")}<small>/qtl modal</small></strong><span>₹{Number(price.minPrice).toLocaleString("en-IN")} – ₹{Number(price.maxPrice).toLocaleString("en-IN")}<small> range · {price.arrivalVolumeTonnes} t arrivals</small></span></div>)}</div></section>}
         {activeTab === "activity" && <section className="tab-view"><div className="section-heading"><div><p className="eyebrow">{role === "farmer" ? "FARMER WORKSPACE" : "BUYER WORKSPACE"}</p><h2>{labels.activity}</h2></div><Badge>{activity.lots.length + activity.demands.length + activity.transactions.length + activity.offers.length} events</Badge></div>{role === "farmer" ? <div className="activity-grid"><div className="panel"><h3>Open buyer requests</h3>{activity.openDemands.length ? activity.openDemands.map((demand) => { const compatible = activity.lots.find((lot) => lot.cropName.toLowerCase().includes(demand.cropName.toLowerCase()) && lot.qualityGrade === demand.targetGrade && lot.basePrice <= demand.maxPrice && lot.weightKg >= demand.requiredQuantityKg); return <div className="activity-row" key={demand.id}><div><b>{demand.cropName} · {demand.requiredQuantityKg} kg</b><span>Buyer: {demand.buyer.name} · up to ₹{demand.maxPrice}/qtl · {demand.destinationPincode}</span></div><button className="outline-btn" disabled={!compatible} onClick={() => compatible && offerLotToDemand(demand.id, compatible.id)}>{compatible ? "Offer matching lot" : "No matching lot"}</button></div>; }) : <p className="muted">No open buyer requests match yet.</p>}</div><div className="panel"><h3>Your offers</h3>{activity.offers.length ? activity.offers.map((offer) => <div className="activity-row" key={offer.id}><div><b>{offer.demand.cropName} · {offer.lot.variety}</b><span>{offer.lot.weightKg} kg · ₹{offer.lot.basePrice}/qtl</span></div><Badge tone={offer.status === "ACCEPTED" ? "green" : "orange"}>{offer.status}</Badge></div>) : <p className="muted">You have not offered a lot yet.</p>}</div></div> : <div className="activity-grid"><div className="panel"><h3>Your requests</h3>{activity.demands.length ? activity.demands.map((demand) => <div className="activity-row" key={demand.id}><div><b>{demand.cropName} · {demand.requiredQuantityKg} kg</b><span>Up to ₹{demand.maxPrice}/qtl</span></div><Badge>{demand.status}</Badge></div>) : <p className="muted">Publish an RFQ to receive farmer offers.</p>}</div><div className="panel"><h3>Farmer offers</h3>{activity.offers.length ? activity.offers.map((offer) => <div className="activity-row" key={offer.id}><div><b>{offer.farmer?.name} · {offer.lot.cropName}</b><span>{offer.lot.weightKg} kg · ₹{offer.lot.basePrice}/qtl · {offer.farmer?.phone}</span></div>{offer.status === "PENDING" ? <button className="outline-btn" onClick={() => acceptFarmerOffer(offer.id)}>Accept offer</button> : <Badge tone="green">{offer.status}</Badge>}</div>) : <p className="muted">Farmer offers will appear here.</p>}</div></div>}</section>}
       </main>
       {scan && (
