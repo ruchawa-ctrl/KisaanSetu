@@ -353,6 +353,11 @@ function App() {
     }
   };
   const startVoiceAssistant = () => {
+    if (voiceListening) {
+      recognitionRef.current?.stop();
+      setVoiceListening(false);
+      return;
+    }
     if (!voiceSupported) {
       setNotice(language === "hi" ? "आपके ब्राउज़र में वॉइस इनपुट उपलब्ध नहीं है।" : language === "mr" ? "तुमच्या ब्राउझरमध्ये व्हॉइस इनपुट उपलब्ध नाही." : "Voice input is not available in this browser.");
       return;
@@ -377,8 +382,15 @@ function App() {
     };
     recognition.onend = () => setVoiceListening(false);
     recognitionRef.current = recognition;
-    recognition.start();
     setVoiceListening(true);
+    setNotice("");
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setVoiceListening(false);
+      setNotice(language === "hi" ? "माइक्रोफ़ोन शुरू नहीं हो सका। कृपया अनुमति दें या सवाल लिखें।" : language === "mr" ? "मायक्रोफोन सुरू होऊ शकला नाही. कृपया परवानगी द्या किंवा प्रश्न टाइप करा." : "The microphone could not start. Allow microphone access or type your question instead.");
+    }
   };
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -570,7 +582,6 @@ function App() {
             <span>{labels.language}</span>
             <select
               value={language}
-              size={Math.min(languageOptions.length, 18)}
               onChange={(event) => setLanguage(event.target.value as Language)}
               aria-label={labels.language}
             >

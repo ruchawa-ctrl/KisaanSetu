@@ -57,13 +57,43 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
   };
 
   const startListening = () => {
+    if (state === 'LISTENING') {
+      recognitionRef.current?.stop();
+      setState('IDLE');
+      return;
+    }
     const Constructor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Constructor) { setVoiceUnavailable(true); return; }
-    const recognition = new Constructor(); recognition.lang = languageCodes[language]; recognition.interimResults = false; recognition.maxAlternatives = 1;
-    recognition.onresult = (event) => { const transcript = event.results[0][0].transcript; setText(transcript); setState('THINKING'); void ask(transcript); };
-    recognition.onerror = () => { setVoiceUnavailable(true); setState('IDLE'); };
-    recognition.onend = () => { if (state === 'LISTENING') setState('IDLE'); };
-    recognitionRef.current = recognition; setState('LISTENING'); recognition.start();
+    setVoiceUnavailable(false);
+    const recognition = new Constructor();
+    recognition.lang = languageCodes[language];
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim();
+      if (!transcript) return;
+      setText(transcript);
+      setState('THINKING');
+      void ask(transcript);
+    };
+    recognition.onerror = () => {
+      recognitionRef.current = null;
+      setVoiceUnavailable(true);
+      setState('IDLE');
+    };
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
+      setState((current) => current === 'LISTENING' ? 'IDLE' : current);
+    };
+    recognitionRef.current = recognition;
+    setState('LISTENING');
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setVoiceUnavailable(true);
+      setState('IDLE');
+    }
   };
 
   const submit = (event: FormEvent) => { event.preventDefault(); void ask(text); };
