@@ -165,7 +165,7 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
   };
 
   const submit = (event: FormEvent) => { event.preventDefault(); void ask(text); };
-  const statusText = state === 'LISTENING' ? t.listen : state === 'THINKING' ? t.think : state === 'IDLE' ? t.prompt : response?.message || t.prompt;
+  const statusText = state === 'LISTENING' ? t.listen : state === 'THINKING' ? t.think : t.prompt;
 
   return <section className={`saathi-panel ${state.toLowerCase()}`} aria-label="AI Saathi assistant">
     <div className="saathi-main"><div><p className="eyebrow">KISAAN SETU · AI SAATHI</p><h2>{t.greeting}</h2><p className="saathi-status">{statusText}</p></div><AISaathiAvatar state={state} assetSrc={assetSrc} /></div>
