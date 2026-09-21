@@ -135,6 +135,10 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
     };
     recognition.onerror = (event) => {
       recognitionRef.current = null;
+      if (typeof MediaRecorder !== 'undefined') {
+        void startRecordingFallback();
+        return;
+      }
       const message = event.error === 'not-allowed' || event.error === 'service-not-allowed'
         ? 'Microphone permission was denied. Allow microphone access for localhost and try again.'
         : event.error === 'language-not-supported'
