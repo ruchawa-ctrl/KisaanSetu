@@ -60,8 +60,52 @@ function demoRecommendation(language: AiLanguage, crop: string, quantityKg: numb
 export async function askAiSaathi(request: AiSaathiRequest): Promise<AiSaathiResponse> {
   const message = request.message.trim();
   if (!message) return { state: 'ERROR', message: 'Please tell me what you need.' };
+  const lowerMessage = message.toLowerCase();
   const matchedCrop = cropPatterns.find((entry) => entry.pattern.test(message));
   const crop = matchedCrop?.name || (tomatoPattern.test(message) ? 'Tomato' : request.farmerContext?.crop || 'Tomato');
+  const wantsPrice = /(price|rate|mandi|भाव|कीमत|दाम|दर|किंमत|बाजार)/i.test(message);
+  const wantsCropCare = /(water|irrigat|pest|disease|fertil|रोग|कीट|पानी|सिंच|खत|फवार)/i.test(message);
+  const wantsSaleAdvice = /(sell|sale|buyer|offer|बेच|विक्री|खरीदार|ऑफर|should i (sell|accept|wait))/i.test(message);
+  const isGreeting = /^(hi|hello|hey|namaste|नमस्ते|नमस्कार|हाय)[!. ]*$/i.test(lowerMessage);
+
+  if (isGreeting) {
+    return { state: 'SUCCESS', message: languageText(request.language, {
+      en: 'Namaskar! Ask me about today\'s mandi rate, whether to sell your crop, irrigation, pests, or post-harvest storage.',
+      hi: 'नमस्कार! आप आज की मंडी कीमत, फसल बेचने का सही समय, सिंचाई, कीट या भंडारण के बारे में पूछ सकते हैं।',
+      mr: 'नमस्कार! आजचा मंडी दर, पीक विकण्याची योग्य वेळ, सिंचन, कीड किंवा साठवणुकीबद्दल विचारा.',
+    }) };
+  }
+
+  if (wantsPrice && !wantsSaleAdvice) {
+    return { state: 'SUCCESS', message: languageText(request.language, {
+      en: `For ${crop}, compare today\'s local mandi modal price with the buyer offer before selling. The demo market reference is ₹${crop === 'Onion' ? '2,450' : '2,180'}/quintal; confirm the current rate, grade, arrivals, and commission at your nearest mandi because prices change during the day.`,
+      hi: `${crop} के लिए बेचने से पहले आज की स्थानीय मंडी की औसत कीमत और खरीदार की पेशकश की तुलना करें। डेमो बाजार संदर्भ ₹${crop === 'Onion' ? '2,450' : '2,180'} प्रति क्विंटल है; मंडी में वर्तमान दर, गुणवत्ता, आवक और कमीशन की पुष्टि करें क्योंकि कीमत दिन में बदल सकती है।`,
+      mr: `${crop} विकण्यापूर्वी आजच्या स्थानिक मंडीतील सरासरी दराची खरेदीदाराच्या ऑफरशी तुलना करा. डेमो बाजार संदर्भ ₹${crop === 'Onion' ? '2,450' : '2,180'} प्रति क्विंटल आहे; दर, दर्जा, आवक आणि कमिशन मंडीत तपासा कारण किंमत दिवसभर बदलू शकते.`,
+    }) };
+  }
+
+  if (wantsCropCare && !wantsSaleAdvice) {
+    const irrigationAdvice = /(irrigat|water|सिंच|पानी)/i.test(message) ? {
+      en: `For ${crop}, check the top 5 cm of soil before watering. Irrigate when it starts to dry, keep the soil moist but never waterlogged, and reduce watering as harvest approaches. For onion, avoid standing water because it increases bulb rot risk.`,
+      hi: `${crop} में पानी देने से पहले ऊपर की 5 सेमी मिट्टी जांचें। मिट्टी सूखने लगे तभी सिंचाई करें, खेत में पानी जमा न होने दें और कटाई नजदीक आने पर पानी कम करें। प्याज में पानी जमा होने से सड़न बढ़ सकती है।`,
+      mr: `${crop} साठी पाणी देण्यापूर्वी वरची 5 सेमी माती तपासा. माती कोरडी होऊ लागल्यावरच सिंचन करा, पाणी साचू देऊ नका आणि कापणी जवळ आल्यावर पाणी कमी करा. कांद्यात पाणी साचल्यास कंद सडण्याचा धोका वाढतो.`,
+    } : null;
+    const advice = irrigationAdvice || cropPatterns.find((entry) => entry.name === crop)?.advice || {
+      en: 'Check soil moisture before watering, inspect a few plants for symptoms, and use only crop-labelled treatments after confirming the pest or disease.',
+      hi: 'पानी देने से पहले मिट्टी की नमी जांचें, कुछ पौधों में लक्षण देखें और कीट या रोग की पुष्टि के बाद ही फसल के लिए स्वीकृत उपचार करें।',
+      mr: 'पाणी देण्यापूर्वी मातीतील ओलावा तपासा, काही झाडांची लक्षणे पाहा आणि कीड किंवा रोगाची खात्री झाल्यावरच पिकासाठी मंजूर उपचार वापरा.',
+    };
+    return { state: 'SUCCESS', message: languageText(request.language, advice) };
+  }
+
+  if (!wantsSaleAdvice && !wantsPrice) {
+    return { state: 'ALERT', message: languageText(request.language, {
+      en: 'I want to give you a useful answer. Tell me the crop and one goal, for example: “onion price today”, “should I sell 500 kg tomato?”, or “how often should I irrigate onion?”.',
+      hi: 'मैं आपको सही सलाह देना चाहता हूँ। फसल और अपना सवाल बताएं, जैसे: “आज प्याज का भाव”, “क्या 500 किलो टमाटर बेचूं?”, या “प्याज में कितनी सिंचाई करें?”',
+      mr: 'मला तुम्हाला योग्य सल्ला द्यायचा आहे. पीक आणि प्रश्न सांगा, उदा.: “आज कांद्याचा दर”, “500 किलो टोमॅटो विकू का?”, किंवा “कांद्याला किती सिंचन द्यावे?”',
+    }) };
+  }
+
   const quantity = Number(message.match(quantityPattern)?.[1] || request.farmerContext?.quantityKg || 500);
   return demoRecommendation(request.language, crop, quantity);
 }
