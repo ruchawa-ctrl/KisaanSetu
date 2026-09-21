@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import axios from "axios";
+import AISaathi, { SupportedLanguage as SaathiLanguage } from "./components/AISaathi";
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api/v1",
 });
@@ -52,6 +53,7 @@ const getGreeting = (fallback: SupportedLanguage) => {
 const getInitials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "KS";
 type PriceRecord = { mandiName: string; cropName: string; modalPrice: number; minPrice: number; maxPrice: number; arrivalVolumeTonnes: number; recordedDate: string };
 type ActivityData = { lots: { id: string; cropName: string; variety: string; weightKg: number; qualityGrade: string; status: string; basePrice: number; createdAt: string }[]; demands: { id: string; cropName: string; requiredQuantityKg: number; maxPrice: number; status: string; createdAt: string }[]; transactions: { id: string; totalAmount: number; escrowStatus: string; createdAt: string; lot: { cropName: string; weightKg: number } }[]; offers: { id: string; status: string; message?: string; demand: { id: string; cropName: string; requiredQuantityKg: number; maxPrice: number; status: string; destinationPincode: string }; farmer?: { name: string; phone: string; verificationStatus: string; rating: number }; lot: { id: string; cropName: string; variety: string; weightKg: number; basePrice: number; qualityGrade: string; status: string } }[]; openDemands: { id: string; cropName: string; targetGrade: string; requiredQuantityKg: number; maxPrice: number; destinationPincode: string; createdAt: string; buyer: { name: string; verificationStatus: string } }[] };
+type DemoPurchase = { id: string; lotId: string; crop: string; farmer: string; quantityKg: number; pricePerQtl: number; totalAmount: number; createdAt: string; status: "IN_TRANSIT" };
 type SupportedLanguage = "en" | "hi" | "mr";
 type AssistantMessage = { id: number; sender: "user" | "bot"; text: string; language: SupportedLanguage };
 type Language = SupportedLanguage | "te" | "as" | "mai" | "hne" | "kok" | "gu" | "bg" | "sat" | "kn" | "ml" | "mni" | "kha" | "lus" | "ao" | "or" | "pa" | "raj" | "ne" | "ta" | "ur" | "bn" | "gar" | "bho" | "ks" | "sd" | "tcy";
@@ -155,7 +157,7 @@ const copy = {
     viewingAs: "Viewing as", farmer: "Farmer", buyer: "Buyer", goodMorning: "Good morning", farmerIntro: "Your harvest is moving with the market.", buyerIntro: "Source better produce, directly from the people who grow it.",
     portfolio: "Portfolio value", thisWeek: "this week", activeLots: "Active lots", awaitingGrading: "2 awaiting grading", trustScore: "Trust score", verifiedProfile: "Verified profile", onTime: "On-time delivery", acrossOrders: "Across 12 orders",
     decisionSupport: "DECISION SUPPORT", marketPulse: "Market pulse", viewPrices: "View all prices", holdWindow: "Hold for a stronger window", sellWindow: "Recommended sell window", expected: "expected", qualityDesk: "AI QUALITY DESK", gradeNext: "Grade your next lot", gradeIntro: "Upload a crop sample and receive an instant trade grade before you list.", startGrading: "Start grading", ready: "Ready for grading",
-    inventory: "YOUR INVENTORY", harvestLots: "Harvest lots", addLot: "Add lot", listed: "Listed 2 days ago", procurement: "DIRECT PROCUREMENT", availableHarvest: "Available harvest", createRfq: "Create RFQ", reviewLot: "Review lot", fulfilment: "FULFILMENT", activeOrders: "Active orders", escrowProtected: "Escrow protected", inTransit: "IN TRANSIT", verifyDelivery: "Verify delivery",
+    inventory: "YOUR INVENTORY", harvestLots: "Harvest lots", addLot: "Add lot", listed: "Listed 2 days ago", procurement: "DIRECT PROCUREMENT", availableHarvest: "Available harvest", createRfq: "Create RFQ", reviewLot: "Review lot", buyCrop: "Buy crops", soldOut: "Sold out", remaining: "remaining", fulfilment: "FULFILMENT", activeOrders: "Active orders", escrowProtected: "Escrow protected", inTransit: "IN TRANSIT", verifyDelivery: "Verify delivery",
     scan: "Scan crop sample",
     choose: "Choose a JPG or PNG from your device",
     upload: "Upload sample",
@@ -167,7 +169,7 @@ const copy = {
     viewingAs: "इस रूप में देखें", farmer: "किसान", buyer: "खरीदार", goodMorning: "सुप्रभात", farmerIntro: "आपकी फसल बाज़ार के साथ आगे बढ़ रही है।", buyerIntro: "उत्पादकों से सीधे बेहतर उपज प्राप्त करें।",
     portfolio: "पोर्टफोलियो मूल्य", thisWeek: "इस सप्ताह", activeLots: "सक्रिय लॉट", awaitingGrading: "2 ग्रेडिंग की प्रतीक्षा में", trustScore: "विश्वास स्कोर", verifiedProfile: "सत्यापित प्रोफ़ाइल", onTime: "समय पर डिलीवरी", acrossOrders: "12 ऑर्डर में",
     decisionSupport: "निर्णय सहायता", marketPulse: "बाज़ार स्थिति", viewPrices: "सभी कीमतें देखें", holdWindow: "बेहतर समय के लिए रोकें", sellWindow: "अनुशंसित बिक्री समय", expected: "अनुमानित", qualityDesk: "एआई गुणवत्ता केंद्र", gradeNext: "अपनी अगली फसल ग्रेड करें", gradeIntro: "लिस्ट करने से पहले नमूना अपलोड करें और तुरंत व्यापार ग्रेड पाएं।", startGrading: "ग्रेडिंग शुरू करें", ready: "ग्रेडिंग के लिए तैयार",
-    inventory: "आपका स्टॉक", harvestLots: "फसल लॉट", addLot: "लॉट जोड़ें", listed: "2 दिन पहले सूचीबद्ध", procurement: "सीधी खरीद", availableHarvest: "उपलब्ध फसल", createRfq: "आरएफक्यू बनाएं", reviewLot: "लॉट देखें", fulfilment: "पूर्ति", activeOrders: "सक्रिय ऑर्डर", escrowProtected: "एस्क्रो सुरक्षित", inTransit: "रास्ते में", verifyDelivery: "डिलीवरी सत्यापित करें",
+    inventory: "आपका स्टॉक", harvestLots: "फसल लॉट", addLot: "लॉट जोड़ें", listed: "2 दिन पहले सूचीबद्ध", procurement: "सीधी खरीद", availableHarvest: "उपलब्ध फसल", createRfq: "आरएफक्यू बनाएं", reviewLot: "लॉट देखें", buyCrop: "फसल खरीदें", soldOut: "बिक चुका", remaining: "शेष", fulfilment: "पूर्ति", activeOrders: "सक्रिय ऑर्डर", escrowProtected: "एस्क्रो सुरक्षित", inTransit: "रास्ते में", verifyDelivery: "डिलीवरी सत्यापित करें",
     scan: "फसल का नमूना स्कैन करें",
     choose: "अपने डिवाइस से JPG या PNG चुनें",
     upload: "नमूना अपलोड करें",
@@ -179,7 +181,7 @@ const copy = {
     viewingAs: "म्हणून पाहत आहात", farmer: "शेतकरी", buyer: "खरेदीदार", goodMorning: "शुभ सकाळ", farmerIntro: "तुमची कापणी बाजारासोबत पुढे जात आहे.", buyerIntro: "पिकवणाऱ्या शेतकऱ्यांकडून थेट चांगला माल मिळवा.",
     portfolio: "पोर्टफोलिओ मूल्य", thisWeek: "या आठवड्यात", activeLots: "सक्रिय लॉट", awaitingGrading: "2 ग्रेडिंगच्या प्रतीक्षेत", trustScore: "विश्वास गुण", verifiedProfile: "सत्यापित प्रोफाइल", onTime: "वेळेवर वितरण", acrossOrders: "12 ऑर्डरमध्ये",
     decisionSupport: "निर्णय सहाय्य", marketPulse: "बाजार स्थिती", viewPrices: "सर्व किंमती पहा", holdWindow: "चांगल्या वेळेसाठी थांबा", sellWindow: "शिफारस केलेली विक्री वेळ", expected: "अपेक्षित", qualityDesk: "एआय गुणवत्ता केंद्र", gradeNext: "तुमच्या पुढील मालाचे ग्रेडिंग करा", gradeIntro: "यादी करण्यापूर्वी नमुना अपलोड करा आणि त्वरित व्यापार श्रेणी मिळवा.", startGrading: "ग्रेडिंग सुरू करा", ready: "ग्रेडिंगसाठी तयार",
-    inventory: "तुमचा साठा", harvestLots: "कापणीचे लॉट", addLot: "लॉट जोडा", listed: "2 दिवसांपूर्वी सूचीबद्ध", procurement: "थेट खरेदी", availableHarvest: "उपलब्ध कापणी", createRfq: "आरएफक्यू तयार करा", reviewLot: "लॉट पहा", fulfilment: "पूर्तता", activeOrders: "सक्रिय ऑर्डर", escrowProtected: "एस्क्रो सुरक्षित", inTransit: "मार्गावर", verifyDelivery: "वितरण सत्यापित करा",
+    inventory: "तुमचा साठा", harvestLots: "कापणीचे लॉट", addLot: "लॉट जोडा", listed: "2 दिवसांपूर्वी सूचीबद्ध", procurement: "थेट खरेदी", availableHarvest: "उपलब्ध कापणी", createRfq: "आरएफक्यू तयार करा", reviewLot: "लॉट पहा", buyCrop: "पीक खरेदी करा", soldOut: "विकले गेले", remaining: "शिल्लक", fulfilment: "पूर्तता", activeOrders: "सक्रिय ऑर्डर", escrowProtected: "एस्क्रो सुरक्षित", inTransit: "मार्गावर", verifyDelivery: "वितरण सत्यापित करा",
     scan: "पिकाचा नमुना स्कॅन करा",
     choose: "तुमच्या डिव्हाइसवरून JPG किंवा PNG निवडा",
     upload: "नमुना अपलोड करा",
@@ -225,6 +227,7 @@ function App() {
   const [userName, setUserName] = useState(() => localStorage.getItem("kisaan_setu_user_name") || (localStorage.getItem("kisaan_setu_role") === "buyer" ? "FreshCart" : "Suresh"));
   const [activeTab, setActiveTab] = useState<DashboardTab>("marketplace");
   const [lots, setLots] = useState(defaultLots);
+  const [demoPurchases, setDemoPurchases] = useState<DemoPurchase[]>(() => { try { return JSON.parse(localStorage.getItem("kisaan_setu_demo_purchases") || "[]") as DemoPurchase[]; } catch { return []; } });
   const [prices, setPrices] = useState<PriceRecord[]>(fallbackPrices);
   const [priceSource, setPriceSource] = useState<"live" | "demo">("demo");
   const [activity, setActivity] = useState<ActivityData>(fallbackActivity);
@@ -265,6 +268,9 @@ function App() {
   const selectedLanguage = languageOptions.find((option) => option.code === language);
   const labels = copy[selectedLanguage?.fallback || "en"];
   const greeting = getGreeting(selectedLanguage?.fallback || "en");
+  const purchasedKgForLot = (lotId: string) => demoPurchases.filter((purchase) => purchase.lotId === lotId).reduce((sum, purchase) => sum + purchase.quantityKg, 0);
+  const lotWeightKg = (lot: (typeof defaultLots)[number]) => Number(lot.weight.replace(/[^0-9.]/g, "")) || 0;
+  const availableKgForLot = (lot: (typeof defaultLots)[number]) => Math.max(0, lotWeightKg(lot) - purchasedKgForLot(lot.id));
   const currentDate = new Date();
   const displayDate = Number.isNaN(currentDate.getTime()) ? new Date("2026-09-22") : currentDate;
   const dateLabel = displayDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }).toUpperCase();
@@ -291,6 +297,14 @@ function App() {
       setAuthenticated(false);
     });
   }, [authenticated]);
+  useEffect(() => {
+    const syncPurchases = (event: StorageEvent) => {
+      if (event.key !== "kisaan_setu_demo_purchases") return;
+      try { setDemoPurchases(JSON.parse(event.newValue || "[]") as DemoPurchase[]); } catch { setDemoPurchases([]); }
+    };
+    window.addEventListener("storage", syncPurchases);
+    return () => window.removeEventListener("storage", syncPurchases);
+  }, []);
   useEffect(() => {
     if (!authenticated) return;
     if (activeTab === "prices") api.get("/dashboard/prices").then((response) => { if (response.data.length) setPrices(response.data); setPriceSource(response.headers["x-price-source"] === "data.gov.in" ? "live" : "demo"); }).catch(() => setPriceSource("demo"));
@@ -413,6 +427,14 @@ function App() {
     setProfileOpen(false);
     setAuthMode("login");
     setRole("farmer");
+  };
+  const buyCrop = (lot: (typeof defaultLots)[number]) => {
+    const quantityKg = availableKgForLot(lot);
+    if (!quantityKg) { setNotice(labels.soldOut); return; }
+    const pricePerQtl = Number(lot.price.replace(/[^0-9]/g, ""));
+    const purchase: DemoPurchase = { id: `demo-purchase-${Date.now()}`, lotId: lot.id, crop: lot.crop, farmer: lot.farmer, quantityKg, pricePerQtl, totalAmount: Math.round(pricePerQtl * quantityKg / 100), createdAt: new Date().toISOString(), status: "IN_TRANSIT" };
+    setDemoPurchases((current) => { const next = [...current, purchase]; localStorage.setItem("kisaan_setu_demo_purchases", JSON.stringify(next)); return next; });
+    setNotice(language === "hi" ? "खरीद पूरी हुई। किसान के स्टॉक में मात्रा कम हो गई है।" : language === "mr" ? "खरेदी पूर्ण झाली. शेतकऱ्याच्या साठ्यातील प्रमाण कमी झाले आहे." : "Purchase completed. The farmer's available stock has been reduced.");
   };
   const openScan = () => {
     setGradeResult(null);
@@ -609,6 +631,7 @@ function App() {
             </button>
           </div>
         )}
+        {role === "farmer" && activeTab === "marketplace" && <AISaathi language={language as SaathiLanguage} assetSrc="/assets/ai-saathi-mascot.png" onLanguageChange={(nextLanguage) => setLanguage(nextLanguage as Language)} />}
         <section className="stats">
           <div>
             <span>{labels.portfolio}</span>
@@ -728,9 +751,10 @@ function App() {
                   <div className="lot-info">
                     <b>{lot.crop}</b>
                     <span>{lot.location}, {lot.state} · {lot.weight} · {labels.listed}</span>
+                    <span>{lot.location}, {lot.state} · {availableKgForLot(lot).toLocaleString("en-IN")} kg {labels.remaining} · {labels.listed}</span>
                   </div>
-                  <Badge tone={lot.grade === "GRADE A" ? "green" : "orange"}>
-                    {lot.grade}
+                  <Badge tone={availableKgForLot(lot) ? (lot.grade === "GRADE A" ? "green" : "orange") : "dark"}>
+                    {availableKgForLot(lot) ? lot.grade : labels.soldOut}
                   </Badge>
                   <strong className="lot-price">
                     {lot.price}
@@ -774,15 +798,11 @@ function App() {
                         {lot.price}
                         <small>/qtl</small>
                       </strong>
-                      <button
-                        className="outline-btn"
-                        onClick={() =>
-                          setNotice(`Interest registered for ${lot.crop}`)
-                        }
-                      >
-                        {labels.reviewLot} <ArrowUpRight size={15} />
+                      <button className="outline-btn" disabled={!availableKgForLot(lot)} onClick={() => buyCrop(lot)}>
+                        {availableKgForLot(lot) ? labels.buyCrop : labels.soldOut} <ArrowUpRight size={15} />
                       </button>
                     </div>
+                    <small className="market-remaining">{availableKgForLot(lot).toLocaleString("en-IN")} kg {labels.remaining}</small>
                   </div>
                 </div>
               ))}
@@ -794,23 +814,19 @@ function App() {
               </div>
             </div>
             <section className="order-row">
-              <div className="order-icon">
-                <Truck size={20} />
-              </div>
-              <div>
-                <b>Onion · Nashik Valley FPO</b>
-                <span>820 kg · {labels.escrowProtected}</span>
-              </div>
-              <Badge tone="dark">{labels.inTransit}</Badge>
-              <div className="progress">
-                <i />
-              </div>
-              <button
-                className="outline-btn"
-                onClick={() => setNotice(labels.qrReady)}
-              >
-                {labels.verifyDelivery} <ScanLine size={15} />
-              </button>
+              {demoPurchases.length ? demoPurchases.slice().reverse().map((purchase) => <div className="order-item" key={purchase.id}>
+                <div className="order-icon"><Truck size={20} /></div>
+                <div><b>{purchase.crop}</b><span>{purchase.quantityKg.toLocaleString("en-IN")} kg · ₹{purchase.totalAmount.toLocaleString("en-IN")} · {labels.escrowProtected}</span></div>
+                <Badge tone="dark">{labels.inTransit}</Badge>
+                <div className="progress"><i /></div>
+                <button className="outline-btn" onClick={() => setNotice(labels.qrReady)}>{labels.verifyDelivery} <ScanLine size={15} /></button>
+              </div>) : <div className="order-item">
+                <div className="order-icon"><Truck size={20} /></div>
+                <div><b>Onion · Nashik Valley FPO</b><span>820 kg · {labels.escrowProtected}</span></div>
+                <Badge tone="dark">{labels.inTransit}</Badge>
+                <div className="progress"><i /></div>
+                <button className="outline-btn" onClick={() => setNotice(labels.qrReady)}>{labels.verifyDelivery} <ScanLine size={15} /></button>
+              </div>}
             </section>
           </>
         ))}
