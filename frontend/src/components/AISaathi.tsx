@@ -34,9 +34,16 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
   const [response, setResponse] = useState<AssistantResponse | null>(null);
   const [voiceUnavailable, setVoiceUnavailable] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
   const contextRef = useRef<{ crop?: string; quantityKg?: number }>({});
 
-  useEffect(() => () => recognitionRef.current?.stop(), []);
+  useEffect(() => () => {
+    recognitionRef.current?.stop();
+    recorderRef.current?.stop();
+    recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
 
   const speak = (message: string) => {
     if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(message); utterance.lang = languageCodes[language]; window.speechSynthesis.speak(utterance); }
@@ -56,14 +63,58 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
     } catch { setState('ERROR'); setMessages((current) => [...current, { speaker: 'saathi', text: 'I could not get the latest market information. Let us try again.' }]); }
   };
 
+  const transcribeRecording = async () => {
+    const blob = new Blob(recordingChunksRef.current, { type: recorderRef.current?.mimeType || 'audio/webm' });
+    const form = new FormData();
+    form.append('audio', blob, 'voice.webm');
+    const result = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1'}/ai-saathi/transcribe`, { method: 'POST', body: form });
+    const data = await result.json() as { text?: string; error?: string };
+    if (!result.ok || !data.text) throw new Error(data.error || 'Voice transcription failed');
+    setText(data.text);
+    void ask(data.text);
+  };
+
+  const startRecordingFallback = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setVoiceUnavailable(true);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recordingChunksRef.current = [];
+      recordingStreamRef.current = stream;
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => { if (event.data.size) recordingChunksRef.current.push(event.data); };
+      recorder.onerror = () => { setVoiceUnavailable(true); setState('IDLE'); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        recordingStreamRef.current = null;
+        recorderRef.current = null;
+        if (recordingChunksRef.current.length) {
+          setState('THINKING');
+          void transcribeRecording().catch(() => { setVoiceUnavailable(true); setState('IDLE'); });
+        }
+      };
+      setVoiceUnavailable(false);
+      setState('LISTENING');
+      recorder.start();
+    } catch {
+      setVoiceUnavailable(true);
+      setState('IDLE');
+    }
+  };
+
   const startListening = () => {
     if (state === 'LISTENING') {
       recognitionRef.current?.stop();
+      recorderRef.current?.stop();
       setState('IDLE');
       return;
     }
     const Constructor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Constructor) { setVoiceUnavailable(true); return; }
+    if (!Constructor) { void startRecordingFallback(); return; }
     setVoiceUnavailable(false);
     const recognition = new Constructor();
     recognition.lang = languageCodes[language];
