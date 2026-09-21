@@ -8,7 +8,8 @@ type AssistantResponse = { state: 'SUCCESS' | 'ALERT' | 'ERROR'; message: string
 type Message = { speaker: 'farmer' | 'saathi'; text: string };
 
 type SpeechRecognitionEventLike = Event & { results: { [index: number]: { [index: number]: { transcript: string } } } };
-type SpeechRecognitionLike = { lang: string; interimResults: boolean; maxAlternatives: number; onresult: ((event: SpeechRecognitionEventLike) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
+type SpeechRecognitionErrorEventLike = Event & { error?: string };
+type SpeechRecognitionLike = { lang: string; interimResults: boolean; maxAlternatives: number; onresult: ((event: SpeechRecognitionEventLike) => void) | null; onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 declare global { interface Window { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor } }
 
@@ -33,6 +34,7 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
   const [text, setText] = useState('');
   const [response, setResponse] = useState<AssistantResponse | null>(null);
   const [voiceUnavailable, setVoiceUnavailable] = useState(false);
+  const [voiceMessage, setVoiceMessage] = useState('');
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingStreamRef = useRef<MediaStream | null>(null);
@@ -76,6 +78,7 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
 
   const startRecordingFallback = async () => {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setVoiceMessage('This browser cannot record audio. Open Kisaan Setu in Chrome or Edge, then allow microphone access.');
       setVoiceUnavailable(true);
       return;
     }
@@ -87,20 +90,22 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
       recordingStreamRef.current = stream;
       recorderRef.current = recorder;
       recorder.ondataavailable = (event) => { if (event.data.size) recordingChunksRef.current.push(event.data); };
-      recorder.onerror = () => { setVoiceUnavailable(true); setState('IDLE'); };
+      recorder.onerror = () => { setVoiceMessage('Microphone recording failed. Check the browser microphone permission and try again.'); setVoiceUnavailable(true); setState('IDLE'); };
       recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
         recordingStreamRef.current = null;
         recorderRef.current = null;
         if (recordingChunksRef.current.length) {
           setState('THINKING');
-          void transcribeRecording().catch(() => { setVoiceUnavailable(true); setState('IDLE'); });
+          void transcribeRecording().catch((error: Error) => { setVoiceMessage(error.message); setVoiceUnavailable(true); setState('IDLE'); });
         }
       };
       setVoiceUnavailable(false);
+      setVoiceMessage('');
       setState('LISTENING');
       recorder.start();
     } catch {
+      setVoiceMessage('Microphone permission was denied. Allow microphone access for localhost and try again.');
       setVoiceUnavailable(true);
       setState('IDLE');
     }
@@ -116,6 +121,7 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
     const Constructor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Constructor) { void startRecordingFallback(); return; }
     setVoiceUnavailable(false);
+    setVoiceMessage('');
     const recognition = new Constructor();
     recognition.lang = languageCodes[language];
     recognition.interimResults = false;
@@ -127,8 +133,14 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
       setState('THINKING');
       void ask(transcript);
     };
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
       recognitionRef.current = null;
+      const message = event.error === 'not-allowed' || event.error === 'service-not-allowed'
+        ? 'Microphone permission was denied. Allow microphone access for localhost and try again.'
+        : event.error === 'language-not-supported'
+          ? 'Voice recognition does not support this language in the current browser. Try English, Hindi, or Marathi.'
+          : 'Voice recognition failed. Check microphone access and try again.';
+      setVoiceMessage(message);
       setVoiceUnavailable(true);
       setState('IDLE');
     };
@@ -142,6 +154,7 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
       recognition.start();
     } catch {
       recognitionRef.current = null;
+      setVoiceMessage('Voice recognition could not start. Allow microphone access for localhost and try again.');
       setVoiceUnavailable(true);
       setState('IDLE');
     }
@@ -154,7 +167,7 @@ export default function AISaathi({ language, assetSrc, onLanguageChange }: { lan
     <div className="saathi-main"><div><p className="eyebrow">KISAAN SETU · AI SAATHI</p><h2>{t.greeting}</h2><p className="saathi-status">{statusText}</p></div><AISaathiAvatar state={state} assetSrc={assetSrc} /></div>
     <button className="saathi-talk" onClick={startListening} disabled={state === 'THINKING'}><span className="saathi-mic">{state === 'LISTENING' ? <MicOff size={21} /> : <Mic size={21} />}</span>{state === 'LISTENING' ? t.listen : t.talk}</button>
     <label className="saathi-language-picker">Assistant language<select value={language} onChange={(event) => onLanguageChange(event.target.value as SupportedLanguage)} aria-label="Assistant language">{Object.entries(languageLabels).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label>
-    {voiceUnavailable && <p className="saathi-fallback"><MicOff size={14} /> {t.fallback}</p>}
+    {voiceUnavailable && <p className="saathi-fallback"><MicOff size={14} /> {voiceMessage || t.fallback}</p>}
     <div className="saathi-conversation">{messages.slice(-4).map((message, index) => <p className={message.speaker} key={`${message.speaker}-${index}`}><b>{message.speaker === 'farmer' ? 'You' : 'AI Saathi'}</b>{message.text}</p>)}</div>
     <form className="saathi-input" onSubmit={submit}><input value={text} onChange={(event) => setText(event.target.value)} placeholder={t.placeholder} aria-label={t.placeholder} /><button type="submit" title={t.send}><Send size={17} /></button></form>
     {response?.recommendation && <div className="saathi-recommendation"><div className="saathi-recommendation-head"><div><span className="badge">BEST OPTION · {t.demo}</span><h3>{response.recommendation.buyer}</h3></div><strong>₹{response.recommendation.pricePerKg}/kg</strong></div><div className="saathi-recommendation-grid"><span><b>₹{response.recommendation.estimatedNet.toLocaleString('en-IN')}</b>{t.estimated}</span><span><b>{response.recommendation.distanceKm} km</b>away</span><span><b>{response.recommendation.paymentWindow}</b>{t.payment}</span></div><p className="saathi-note"><Check size={15} /> {response.recommendation.verified ? t.verified : ''} · {response.recommendation.pickup ? t.pickup : ''}<br />{response.recommendation.note}</p><div className="saathi-actions"><button className="outline-btn" type="button">{t.view}</button><button className="outline-btn" type="button">{t.compare}</button><button className="icon-btn" type="button" title={t.again} onClick={startListening}><Volume2 size={17} /></button></div>{response.action && <div className="saathi-confirm"><span>{response.action.label}</span><button className="primary-btn small" type="button" onClick={() => { setState('SUCCESS'); setMessages((current) => [...current, { speaker: 'saathi', text: t.confirmed }]); }}>{t.confirm}</button><button className="outline-btn" type="button" onClick={() => setResponse(null)}>{t.cancel}</button></div>}</div>}
