@@ -418,7 +418,11 @@ function App() {
       setUserName(authenticatedName);
       setAuthenticated(true);
     } catch (error) {
-      setAuthError(axios.isAxiosError(error) ? error.response?.data?.error || "Authentication failed" : "Authentication failed");
+      if (axios.isAxiosError(error) && !error.response) {
+        setAuthError("Authentication service is unavailable. Start the backend, or use demo mode while the API is offline.");
+      } else {
+        setAuthError(axios.isAxiosError(error) ? error.response?.data?.error || "Authentication failed" : "Authentication failed");
+      }
     }
   };
   const enterDemoMode = () => {
