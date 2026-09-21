@@ -765,7 +765,6 @@ function App() {
                   </div>
                   <div className="lot-info">
                     <b>{lot.crop}</b>
-                    <span>{lot.location}, {lot.state} · {lot.weight} · {labels.listed}</span>
                     <span>{lot.location}, {lot.state} · {availableKgForLot(lot).toLocaleString("en-IN")} kg {labels.remaining} · {labels.listed}</span>
                   </div>
                   <Badge tone={availableKgForLot(lot) ? (lot.grade === "GRADE A" ? "green" : "orange") : "dark"}>
